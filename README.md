@@ -2,7 +2,6 @@
 
 ### This repo contains the code for the above paper accepted in WACV2021.
 
-
 The basic commands to run for generating the results are:
 
     python3 get_visibility_matrix.py /home/user/fullpipeline/colmap_data/CMU_data/slice3/ 
@@ -11,9 +10,77 @@ The basic commands to run for generating the results are:
 
 The directory `/home/user/fullpipeline/colmap_data/CMU_data/slice3/` will be different in your case. 
 
-`get_visibility_matrix.py applies` the exponential decay.
+`get_visibility_matrix.py` applies the exponential decay.
 
 One you run this code for all the CMU slices (or retail shop) then you will want to run `results_analyzer.py`. 
+
+#### Preparation of data
+
+Before you ran `get_visibility_matrix.py` and the other commands you will need to have setup your data.
+For this project I did it manually.
+
+You will need to seperate your sessions. 
+If you have 9 slices for example, you can pick slice 1 for your base model, and slice 9 for your query (test session).
+
+You will need to create thus 10 folders.
+
+- slice1
+- ...
+- slice1_9
+
+each session folder should look like this:
+
+```bash
+├── base
+│   ├── base_images_cam_centers.txt
+│   ├── database.db
+│   ├── images
+│   │   ├── img_01007_c0_1303398554379838us.jpg
+│   │   ├── ...
+│   └── model
+│       └── 0
+│           ├── cameras.bin
+│           ├── images.bin
+│           ├── points3D.bin
+│           └── project.ini
+├── gt
+│   ├── database.db
+│   ├── images
+│   │   └── session_2
+│   │       ├── img_02455_c0_1283347962184884us.jpg
+│   │       ├── ...
+│   ├── model
+│   │   ├── cameras.bin
+│   │   ├── images.bin
+│   │   └── points3D.bin
+│   └── query_name.txt
+├── live
+│   ├── database.db
+│   ├── images
+│   │   ├── session_3
+│   │   │   ├── img_01750_c0_1284563401010858us.jpg
+│   │   │   ├── ...
+│   │   └── session_4
+│   │       ├── img_01915_c0_1285949838575748us.jpg
+│   │       ├── ...
+│   ├── model
+│   │   ├── cameras.bin
+│   │   ├── images.bin
+│   │   └── points3D.bin
+│   ├── query_name.txt
+│   └── session_lengths.txt
+```
+
+The files under the models folders will be created when you run this: 
+
+```python3 cmu_sparse_reconstuctor.py /home/user/fullpipeline/colmap_data/Coop_data/slice1/ 0```
+```python3 cmu_sparse_reconstuctor.py /home/user/fullpipeline/colmap_data/Coop_data/slice1_1/ 0```
+```...```
+```python3 cmu_sparse_reconstuctor.py /home/user/fullpipeline/colmap_data/Coop_data/slice1_9/ 0```
+
+The script can be found [here](https://github.com/alexs7/Mobile-Pose-Estimation-Pipeline-Prototype/blob/server_version/cmu_sparse_reconstuctor.py).
+
+All the above ws preparation work to create the incremental live models. Once you have all these sorted you can then run the commands mentioned before.
 
 Notes: 
 
