@@ -101,6 +101,7 @@ def create_vm(parameters):
     np.save(parameters.binary_visibility_matrix_path, binary_visibility_matrix)
 
 # NOTE: The folders are created manually under, /Users/alex/Projects/EngDLocalProjects/LEGO/fullpipeline/colmap_data/data/visibility_matrices
-base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/"
+# 07/12/2022: base path should contain base, live, gt model
+base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/" or add "exmaps_data"
 parameters = Parameters(base_path)
 create_vm(parameters)

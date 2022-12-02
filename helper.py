@@ -68,6 +68,26 @@ def arrange_images_txt_file(db_path, images, path):
                     f.write("\n")
                     id +=1
 
+def arrange_images_txt_file_lamar(db_path, images, path):
+    db = COLMAPDatabase.connect(db_path)
+    with open(path, "r") as f:
+        lines = f.readlines()
+    with open(path, "w") as f:
+        for line in lines:
+            image_name = line.split(" ")[-1].strip()
+            if(image_name in images):
+                if "#" in line:
+                    f.write(line)
+                if ".jpg" in line:
+                    line = line.split(" ")
+                    name = line[-1].strip()
+                    id = db.execute("SELECT image_id FROM images WHERE name = " + "'" + str(name) + "'").fetchone()[0]
+                    line[0] = str(id)
+                    line = " ".join(line)
+                    f.write(line)
+                    f.write("\n")
+                    id +=1
+
 def arrange_sessions(source, dest):
     # From CMU README
     # Sunny + No Foliage (reference) | 4 Apr 2011
@@ -131,3 +151,19 @@ def create_query_image_names_txt(txt_path, images_path):
         for image in glob.glob(os.path.join(images_path,'*/*.jpg'), recursive=True):
             image_loc = image.split(f"{images_path}/")[1]
             f.write(f"{image_loc}\n")
+
+# returns the number of all images regardless of being localised or for each session.
+# 07/12/2022: used the same code as it was in 2019 just removed the code that generates the query_name.txt
+def gen_query_txt(dir, base_images_no = None):
+    session_nums = []
+    images = []
+    for folder in glob.glob(dir+"/session_*"):
+        i=0
+        for file in glob.glob(folder+"/*.jpg"):
+            image_name = file.split('images/')[1]
+            images.append(image_name)
+            i+=1
+        session_nums.append(i)
+
+    session_nums =  [base_images_no] + session_nums
+    if(base_images_no is not None) : np.savetxt(dir+"/../session_lengths.txt", session_nums)
