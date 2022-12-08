@@ -1,7 +1,9 @@
 # Arguments
+import os
+
 import cv2
 from pathlib import Path
-
+import csv
 from RANSACParameters import RANSACParameters
 from benchmark import benchmark
 from database import COLMAPDatabase
@@ -16,7 +18,8 @@ from ransac_comparison import run_comparison, sort_matches
 from ransac_prosac import ransac, ransac_dist, prosac
 import sys
 
-base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/"
+# 08/12/2022 - base path should contain base, live, gt model
+base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/" or add "exmaps_data"
 do_feature_matching = sys.argv[2] == "1"
 parameters = Parameters(base_path)
 
@@ -55,23 +58,23 @@ train_descriptors_base = np.load(parameters.avg_descs_base_path).astype(np.float
 train_descriptors_live = np.load(parameters.avg_descs_live_path).astype(np.float32)
 
 # Getting the scores
-points3D_reliability_scores_matrix= np.load(parameters.per_image_decay_matrix_path)
-points3D_heatmap_vals_matrix = np.load(parameters.per_session_decay_matrix_path)
+points3D_per_session_scores_matrix= np.load(parameters.per_image_decay_matrix_path)
+points3D_per_image_scores_matrix = np.load(parameters.per_session_decay_matrix_path)
 points3D_visibility_matrix = np.load(parameters.binary_visibility_matrix_path)
 
-points3D_reliability_scores = points3D_reliability_scores_matrix.sum(axis=0)
-points3D_heatmap_vals = points3D_heatmap_vals_matrix.sum(axis=0)
+points3D_per_session_scores = points3D_per_session_scores_matrix.sum(axis=0)
+points3D_per_image_scores = points3D_per_image_scores_matrix.sum(axis=0)
 points3D_visibility_vals = points3D_visibility_matrix.sum(axis=0)
 
-points3D_reliability_scores = points3D_reliability_scores.reshape([1, points3D_reliability_scores.shape[0]])
-points3D_heatmap_vals = points3D_heatmap_vals.reshape([1, points3D_heatmap_vals.shape[0]])
+points3D_per_session_scores = points3D_per_session_scores.reshape([1, points3D_per_session_scores.shape[0]])
+points3D_per_image_scores = points3D_per_image_scores.reshape([1, points3D_per_image_scores.shape[0]])
 points3D_visibility_vals = points3D_visibility_vals.reshape([1, points3D_visibility_vals.shape[0]])
 
-points3D_reliability_scores = points3D_reliability_scores / points3D_reliability_scores.sum()
-points3D_heatmap_vals = points3D_heatmap_vals / points3D_heatmap_vals.sum()
+points3D_per_session_scores = points3D_per_session_scores / points3D_per_session_scores.sum()
+points3D_per_image_scores = points3D_per_image_scores / points3D_per_image_scores.sum()
 points3D_visibility_vals = points3D_visibility_vals / points3D_visibility_vals.sum()
 
-points3D_live_model_scores = [points3D_heatmap_vals, points3D_reliability_scores, points3D_visibility_vals] #the order matters - (for later on PROSAC etc, look at ransac_comparison.py)!
+points3D_live_model_scores = [points3D_per_image_scores, points3D_per_session_scores, points3D_visibility_vals] #the order matters - (for later on PROSAC etc, look at ransac_comparison.py)!
 # Done getting the scores
 
 # 1: Feature matching
@@ -129,20 +132,20 @@ print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_over
 results[RANSACParameters.ransac_live] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
 
 print()
-print(" RANSAC + dist heatmap val:")
+print(" RANSAC + dist per_image_score val:")
 inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_heatmap_val, verbose = True)
+    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_per_image_score, verbose = True)
 print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
 print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_dist_heatmap_val] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+results[RANSACParameters.ransac_dist_per_image_score] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
 
 print()
-print(" RANSAC + dist reliability score:")
+print(" RANSAC + dist per_session_score score:")
 inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_reliability_score, verbose = True)
+    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_pre_session_score, verbose = True)
 print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
 print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_dist_reliability_score] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+results[RANSACParameters.ransac_dist_per_session_score] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
 
 print()
 print(" RANSAC + dist visibility score:")
@@ -156,10 +159,10 @@ prosac_value_indices = [RANSACParameters.lowes_distance_inverse_ratio_index,
                         RANSACParameters.higher_neighbour_val_index,
                         RANSACParameters.higher_neighbour_score_index,
                         RANSACParameters.higher_visibility_score_index,
-                        RANSACParameters.lowes_ratio_reliability_score_val_ratio_index,
-                        RANSACParameters.lowes_ratio_heatmap_val_ratio_index,
-                        RANSACParameters.lowes_ratio_by_higher_reliability_score_index,
-                        RANSACParameters.lowes_ratio_by_higher_heatmap_val_index]
+                        RANSACParameters.lowes_ratio_per_session_score_val_ratio_index,
+                        RANSACParameters.lowes_ratio_per_image_score_ratio_index,
+                        RANSACParameters.lowes_ratio_by_higher_per_session_score_index,
+                        RANSACParameters.lowes_ratio_by_higher_per_image_score_index]
 
 print()
 print(" PROSAC versions")
@@ -175,6 +178,17 @@ for prosac_sort_val in prosac_value_indices:
     results[prosac_type] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
 
 np.save(parameters.save_results_path, results)
+
+print("Writing, result.npy to .csv file")
+result_file_csv_output_path = os.path.join(parameters.save_results_csv_path)
+
+header = ['Method Name', 'Inliers (%)', 'Outliers (%)', 'Iterations', 'Total Time (s)', 'Trans Error (m)', 'Rotation Error (d)']
+with open(result_file_csv_output_path, 'w', encoding='UTF8') as f:
+    writer = csv.writer(f)
+    writer.writerow(header)
+    for method_name, data in results.items():
+        row = [method_name, data[0], data[1], data[2], data[3], data[4], data[5]]
+        writer.writerow(row)
 
 print()
 print("Done !")

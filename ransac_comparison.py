@@ -99,17 +99,17 @@ def higher_neighbour_visibility_score(matches):
     return np.array(scores)
 
 functions = {RANSACParameters.lowes_distance_inverse_ratio_index : lowes_distance_inverse,
-             RANSACParameters.heatmap_val_index : heatmap_val,
-             RANSACParameters.reliability_score_index : reliability_score,
-             RANSACParameters.reliability_score_ratio_index : reliability_score_ratio,
-             RANSACParameters.lowes_ratio_reliability_score_val_ratio_index : lowes_ratio_reliability_score_ratio,
-             RANSACParameters.lowes_ratio_heatmap_val_ratio_index : lowes_ratio_heatmap_val_ratio,
+             RANSACParameters.per_image_score_index : heatmap_val,
+             RANSACParameters.per_session_score_index : reliability_score,
+             RANSACParameters.per_session_score_ratio_index : reliability_score_ratio,
+             RANSACParameters.lowes_ratio_per_session_score_val_ratio_index : lowes_ratio_reliability_score_ratio,
+             RANSACParameters.lowes_ratio_per_image_score_ratio_index : lowes_ratio_heatmap_val_ratio,
              RANSACParameters.higher_neighbour_score_index : higher_neighbour_score,
-             RANSACParameters.heatmap_val_ratio_index: heatmap_value_ratio,
+             RANSACParameters.per_image_score_ratio_index: heatmap_value_ratio,
              RANSACParameters.higher_neighbour_val_index: higher_neighbour_value,
              RANSACParameters.higher_visibility_score_index: higher_neighbour_visibility_score,
-             RANSACParameters.lowes_ratio_by_higher_reliability_score_index: lowes_ratio_by_higher_reliability_score,
-             RANSACParameters.lowes_ratio_by_higher_heatmap_val_index: lowes_ratio_by_higher_heatmap_val}
+             RANSACParameters.lowes_ratio_by_higher_per_session_score_index: lowes_ratio_by_higher_reliability_score,
+             RANSACParameters.lowes_ratio_by_higher_per_image_score_index: lowes_ratio_by_higher_heatmap_val}
 
 def sort_matches(matches, idx):
     score_list = functions[idx](matches)
@@ -137,11 +137,11 @@ def run_comparison(func, matches, test_images, intrinsics, val_idx = None):
                 matches_for_image = sort_matches(matches_for_image, val_idx)
 
             # These below are for RANSAC + dist versions
-            if(val_idx == RANSACParameters.use_ransac_dist_heatmap_val):
+            if(val_idx == RANSACParameters.use_ransac_dist_per_image_score):
                 sub_dist = get_sub_distribution(matches_for_image, 7)
                 matches_for_image = np.hstack((matches_for_image, sub_dist))
 
-            if (val_idx == RANSACParameters.use_ransac_dist_reliability_score):
+            if (val_idx == RANSACParameters.use_ransac_dist_pre_session_score):
                 sub_dist = get_sub_distribution(matches_for_image, 9)
                 matches_for_image = np.hstack((matches_for_image, sub_dist))
 

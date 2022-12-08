@@ -15,8 +15,15 @@ def benchmark(benchmarks_iters, ransac_func, matches, query_images_names, K, que
         poses , data = run_comparison(ransac_func, matches, query_images_names, K, val_idx=val_idx)
         trans_errors, rot_errors = pose_evaluate(poses, query_images_ground_truth_poses, scale)
 
-        inlers_no.append(data.mean(axis=0)[0])
-        outliers.append(data.mean(axis=0)[1])
+        inliers_mean_total = data.mean(axis=0)[0]
+        outliers_mean_total = data.mean(axis=0)[1]
+        total_inliers_outliers_mean_perce = inliers_mean_total + outliers_mean_total
+        inliers_mean_perce = inliers_mean_total * 100 / total_inliers_outliers_mean_perce
+        outliers_mean_perce = outliers_mean_total * 100 / total_inliers_outliers_mean_perce
+
+        # 09/12/2022 - Switched to percentages
+        inlers_no.append(inliers_mean_perce)
+        outliers.append(outliers_mean_perce)
         iterations.append(data.mean(axis=0)[2])
         time.append(data.mean(axis=0)[3])
         trans_errors_overall.append(np.nanmean(trans_errors))

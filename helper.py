@@ -73,19 +73,20 @@ def arrange_images_txt_file_lamar(db_path, images, path):
     with open(path, "r") as f:
         lines = f.readlines()
     with open(path, "w") as f:
-        for line in lines:
-            image_name = line.split(" ")[-1].strip()
+        for line in tqdm(lines):
+            image_name = line.split("map/raw_data/")[-1].strip()
             if(image_name in images):
                 if "#" in line:
                     f.write(line)
                 if ".jpg" in line:
                     line = line.split(" ")
-                    name = line[-1].strip()
-                    id = db.execute("SELECT image_id FROM images WHERE name = " + "'" + str(name) + "'").fetchone()[0]
+                    id = db.execute("SELECT image_id FROM images WHERE name = " + "'" + str(image_name) + "'").fetchone()[0]
                     line[0] = str(id)
+                    line[-1] = image_name
                     line = " ".join(line)
                     f.write(line)
                     f.write("\n")
+                    f.write("\n") #need to add an extra new line
                     id +=1
 
 def arrange_sessions(source, dest):
@@ -152,7 +153,13 @@ def create_query_image_names_txt(txt_path, images_path):
             image_loc = image.split(f"{images_path}/")[1]
             f.write(f"{image_loc}\n")
 
-# returns the number of all images regardless of being localised or for each session.
+def create_query_image_names_txt_lamar(txt_path, images_path):
+    with open(txt_path, 'w') as f:
+        for image in glob.glob(os.path.join(images_path,'*/*/*.jpg'), recursive=True):
+            image_loc = image.split(f"{images_path}/")[1]
+            f.write(f"{image_loc}\n")
+
+# returns the number of all images regardless of being localised or for each session, use for CMU only.
 # 07/12/2022: used the same code as it was in 2019 just removed the code that generates the query_name.txt
 def gen_query_txt(dir, base_images_no = None):
     session_nums = []

@@ -37,7 +37,7 @@ for slice, q_session in combinations.items():
     cmu_url = f"https://data.ciirc.cvut.cz/public/projects/2020VisualLocalization/Extended-CMU-Seasons/{cmu_slice}.tar"
     dest_file = os.path.join(dest, f"{cmu_slice}.tar")
 
-    # download code - uncomment if you dont want to download
+    # download code - uncomment if you want to download
     # response = requests.get(cmu_url, stream=True)
     # total_size_in_bytes= int(response.headers.get('content-length', 0))
     # block_size = 1024 #1 Kibibyte
@@ -127,7 +127,6 @@ for slice, q_session in combinations.items():
     colmap.vocab_tree_matcher(live_db_path, query_live_images_txt_path)
     exmaps_data_live_model_path = os.path.join(exmaps_data_live_path, "model")
     colmap.image_registrator(live_db_path, exmaps_data_base_model_path, exmaps_data_live_model_path)
-
 
     # stage 11 - Create query (or gt) model
     gt_db_path = os.path.join(exmaps_data_gt_path, "database.db")

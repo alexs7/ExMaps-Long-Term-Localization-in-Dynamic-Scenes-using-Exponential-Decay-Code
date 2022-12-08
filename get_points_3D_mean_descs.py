@@ -29,14 +29,14 @@ def get_desc_avg(points3D, db):
             keypoint_index = points3D[point_id].point2D_idxs[k]
             desc = descs[keypoint_index] #keypoints and descs are ordered the same (so I use the point2D_idxs to index descs )
             desc = desc.reshape(1, 128) #this is the desc of keypoint with index, keypoint_index, from image with id, id.
-            desc = desc / desc.sum()
             points3D_descs = np.r_[points3D_descs, desc]
 
         # adding and calulating the mean here!
         points_mean_descs = np.r_[points_mean_descs, points3D_descs.mean(axis=0).reshape(1,128)]
     return points_mean_descs
 
-base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/"
+# 08/12/2022 - base path should contain base, live, gt model
+base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/" or add "exmaps_data"
 parameters = Parameters(base_path)
 
 db_live = COLMAPDatabase.connect(parameters.live_db_path)
@@ -52,6 +52,7 @@ live_model_points3D = read_points3d_default(parameters.live_model_points3D_path)
 # This is because the live_model_points3D points' images_ids hold also ids of the live and base model images, since the live model is just the
 # base model with extra images localised in it. You can use the base model for the base images but you need to make sure that the base model is exactly the
 # same as the live model, before you do. TODO: Maybe change to base to get it done with ?
+# 08/12/2022 - it seems that you are not doing the above - you are using live and base seperately which makes more sense.
 
 # 2 cases base and live images points3D descs
 avgs_base = get_desc_avg(base_model_points3D, db_base)

@@ -4,7 +4,7 @@ import os
 class Parameters(object):
 
     def __init__(self, base_path):
-        self.benchmarks_iters = 15
+        self.benchmarks_iters = 5
         self.avg_descs_base_path = os.path.join(base_path,"avg_descs_base.npy")
         self.avg_descs_live_path = os.path.join(base_path,"avg_descs_live.npy")
 
@@ -16,12 +16,14 @@ class Parameters(object):
         self.matches_live_save_path = os.path.join(base_path,"matches_live.npy")
 
         # 29/06/2020 - My addition
+        # 08/12/2022 - changed from "base/model/0/points3D.bin" to "base/model/points3D.bin"
+        # same for images.bin, as the folder /0/ is not created anymore
         self.live_model_images_path = os.path.join(base_path,"live/model/images.bin")
-        self.base_model_images_path = os.path.join(base_path,"base/model/0/images.bin")
+        self.base_model_images_path = os.path.join(base_path,"base/model/images.bin")
         self.gt_model_images_path = os.path.join(base_path,"gt/model/images.bin")
 
         self.live_model_points3D_path = os.path.join(base_path,"live/model/points3D.bin")
-        self.base_model_points3D_path = os.path.join(base_path,"base/model/0/points3D.bin")
+        self.base_model_points3D_path = os.path.join(base_path,"base/model/points3D.bin")
         self.gt_model_points3D_path = os.path.join(base_path,"gt/model/points3D.bin")
 
         self.live_db_path = os.path.join(base_path,"live/database.db")
@@ -34,6 +36,7 @@ class Parameters(object):
         self.gt_model_cameras_path = os.path.join(base_path,"gt/model/cameras.bin")
 
         self.save_results_path = os.path.join(base_path,"results.npy")
+        self.save_results_csv_path = os.path.join(base_path,"results.csv")
 
         # Parameters.no_images_per_session: Number of images per session. The numbers need to be sorted by session though. First is number of base model images.
         # The gt session_lengths is not used.
