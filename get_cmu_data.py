@@ -1,5 +1,5 @@
 # This file will download and create base model a live and a gt for each CMU slice
-# Run this on the CYENS machine
+# Run this on the CYENS machine. You can use python3 here.
 import glob
 import os.path
 import pdb
