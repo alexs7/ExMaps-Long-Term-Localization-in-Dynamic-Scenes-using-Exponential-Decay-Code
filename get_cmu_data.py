@@ -19,7 +19,7 @@ from helper import remove_file_safe, remove_folder_safe, empty_points_3D_txt_fil
     create_query_image_names_txt, gen_query_txt
 from undistort_img import undistort_cmu
 
-dest = abspath(sys.argv[1])
+dest = abspath(sys.argv[1]) #/media/iNicosiaData/engd_data/cmu
 
 # all combinations
 combinations = {"slice2": 6, "slice3": 7, "slice4": 2, "slice5": 4, "slice6": 4,
