@@ -28,6 +28,7 @@ combinations = {"slice2": 6, "slice3": 7, "slice4": 2, "slice5": 4, "slice6": 4,
                 "slice17": 7, "slice18": 8, "slice19": 4, "slice20": 9, "slice21": 9,
                 "slice22": 9, "slice23": 6, "slice24": 5, "slice25": 5 }
 
+print("Iterating through slices")
 for slice, q_session in combinations.items():
     # stage 1 - Download file
     cmu_slice = slice
