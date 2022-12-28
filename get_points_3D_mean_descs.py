@@ -31,7 +31,7 @@ def get_desc_avg(points3D, db):
             desc = desc.reshape(1, 128) #this is the desc of keypoint with index, keypoint_index, from image with id, id.
             points3D_descs = np.r_[points3D_descs, desc]
 
-        # adding and calulating the mean here!
+        # adding and calculating the mean here!
         points_mean_descs = np.r_[points_mean_descs, points3D_descs.mean(axis=0).reshape(1,128)]
     return points_mean_descs
 
