@@ -27,10 +27,10 @@ base_path = "/media/iNicosiaData/engd_data/lamar/colmap_model/base"
 base_model_path = "/media/iNicosiaData/engd_data/lamar/colmap_model/base/model"
 base_triangulated_model_path = "/media/iNicosiaData/engd_data/lamar/colmap_model/base/triangulated_model"
 base_cameras_files_path = "/media/iNicosiaData/engd_data/lamar/colmap_model/base/camera_files_extra"
-remove_folder_safe(base_path)
-remove_folder_safe(base_model_path)
-remove_folder_safe(base_cameras_files_path)
-remove_folder_safe(base_triangulated_model_path)
+# remove_folder_safe(base_path)
+# remove_folder_safe(base_model_path)
+# remove_folder_safe(base_cameras_files_path)
+# remove_folder_safe(base_triangulated_model_path)
 
 run_capture_to_empty_colmap.run(capture, ["map"], Path(base_model_path), ext=".txt")
 # I create the "empty" model because I need access to the cameras so I can create the config files for each
@@ -65,17 +65,17 @@ for cam_id, camera in tqdm(base_reconstruction.cameras.items()):
     np.savetxt(image_list_path, paths, fmt="%s")
     for path in paths:
         base_images_paths.append(path)
-    colmap.feature_extractor_lamar(base_db_path, base_images_path, cam_id, base_cameras_files_path, image_list_path)
+    # colmap.feature_extractor_lamar(base_db_path, base_images_path, cam_id, base_cameras_files_path, image_list_path)
 
 
 # 3, run the matcher
 print("Matching images on the live model")
 images_file_txt_path = os.path.join(base_model_path, "images.txt")
 arrange_images_txt_file_lamar(base_db_path, base_images_paths, images_file_txt_path) #as per COLMAP FAQ
-colmap.vocab_tree_matcher(base_db_path)
+# colmap.vocab_tree_matcher(base_db_path)
 
 # 4, triangulate points
-colmap.point_triangulator(base_db_path, images_path, base_model_path, base_triangulated_model_path)
+colmap.point_triangulator(base_db_path, base_images_path, base_model_path, base_triangulated_model_path)
 
 print("Moving on to live model..")
 
