@@ -1,80 +1,75 @@
 # Arguments
 import os
-
-import cv2
 from pathlib import Path
-import csv
 from RANSACParameters import RANSACParameters
 from benchmark import benchmark
 from database import COLMAPDatabase
 from feature_matching_generator import feature_matcher_wrapper
+from helper import remove_folder_safe
 from parameters import Parameters
-from point3D_loader import read_points3d_default, get_points3D_xyz
+from point3D_loader import read_points3d_default, get_points3D_xyz_id
 import numpy as np
-from pose_evaluator import pose_evaluate
-from query_image import read_images_binary, load_images_from_text_file, get_localised_image_by_names, \
-    get_query_images_pose_from_images, get_intrinsics_from_camera_bin
-from ransac_comparison import run_comparison, sort_matches
+from query_image import read_images_binary, load_images_from_text_file, get_localised_image_by_names, get_query_images_pose_from_images, get_intrinsics_from_camera_bin, \
+    get_image_id, save_image_projected_points, read_cameras_binary, get_intrinsics
 from ransac_prosac import ransac, ransac_dist, prosac
 import sys
+import cv2
 
 # 08/12/2022 - base path should contain base, live, gt model
 base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/" or add "exmaps_data"
-do_feature_matching = sys.argv[2] == "1"
+do_feature_matching = sys.argv[2] == "1" # 1 or 0 do / do not matching
+no_iterations = int(sys.argv[3]) # 3000 for CMU and Retail datasets, 10000 for LaMAR dataset
+
 parameters = Parameters(base_path)
+remove_folder_safe(parameters.results_path)
 
 print("Doing path: " + base_path)
-print()
 
 db_gt = COLMAPDatabase.connect(parameters.gt_db_path) #this database can be used to get the query images descs and ground truth poses for later pose comparison
-# Here by "query" I mean the gt images from the gt model - a bit confusing, but think of these images as new new incoming images
+# Here by "query" I mean the gt images from the gt model - a bit confusing, but think of these images as new incoming images
 # that the user sends with his mobile device. Now the intrinsics will have to be picked up from COLMAP as COLMAP changes the focal point.. (bug..)
 # If it didn't change them I could have used just the ones extracted from ARCore in the ARCore case, and the ones provided by CMU in the CMU case.
-all_query_images = read_images_binary(parameters.gt_model_images_path)
-all_query_images_names = load_images_from_text_file(parameters.query_images_path)
-localised_query_images_names = get_localised_image_by_names(all_query_images_names, parameters.gt_model_images_path)
+print("Reading gt images .bin (localised)...")
+all_query_images = read_images_binary(parameters.gt_model_images_path) #only localised images (but from base,live,gt - we need only gt)
+all_query_images_names = load_images_from_text_file(parameters.query_images_path) #only gt images (all)
+localised_query_images_names = get_localised_image_by_names(all_query_images_names, all_query_images) #only gt images (localised only)
 
 # Note these are the ground truth query images (not session images) that managed to localise against the LIVE model. Might be a low number.
 query_images_names = localised_query_images_names
 query_images_ground_truth_poses = get_query_images_pose_from_images(query_images_names, all_query_images)
 
+print("Reading 3D points .bin...")
 # the order is different in points3D.txt for some reason COLMAP changes it
 points3D_base = read_points3d_default(parameters.base_model_points3D_path)
-points3D_xyz_base = get_points3D_xyz(points3D_base)
+points3D_xyz_id_base = get_points3D_xyz_id(points3D_base)
 
 points3D_live = read_points3d_default(parameters.live_model_points3D_path)
-points3D_xyz_live = get_points3D_xyz(points3D_live)
+points3D_xyz_id_live = get_points3D_xyz_id(points3D_live)
 
-scale = 1 # default value
-if(Path(parameters.ARCORE_scale_path).is_file()):
-    scale = np.loadtxt(parameters.ARCORE_scale_path).reshape(1)[0]
+cameras_bin = read_cameras_binary(parameters.gt_model_cameras_path)
+Ks = get_intrinsics(all_query_images, cameras_bin)
 
-# 3 is because camera 3 is created when query images are added
-K = get_intrinsics_from_camera_bin(parameters.gt_model_cameras_path, 3)
-
-# train_descriptors_base and train_descriptors_live are self explanatory
+print("Loading descs and 3D points, ids...")
+# train_descriptors_base and train_descriptors_live are self-explanatory
 # train_descriptors must have the same length as the number of points3D
 train_descriptors_base = np.load(parameters.avg_descs_base_path).astype(np.float32)
 train_descriptors_live = np.load(parameters.avg_descs_live_path).astype(np.float32)
 
+# points3D_ids, these will be used for sanity checks - they have the same order as the scores (29/12/2022)
+live_points_3D_ids = np.load(parameters.live_points_3D_ids_file_path)
+base_points_3D_ids = np.load(parameters.base_points_3D_ids_file_path)
+
 # Getting the scores
-points3D_per_session_scores_matrix= np.load(parameters.per_image_decay_matrix_path)
-points3D_per_image_scores_matrix = np.load(parameters.per_session_decay_matrix_path)
-points3D_visibility_matrix = np.load(parameters.binary_visibility_matrix_path)
+points3D_per_session_scores = np.load(parameters.per_session_decay_scores_path)
+points3D_per_image_scores = np.load(parameters.per_image_decay_scores_path)
+points3D_visibility_scores = np.load(parameters.binary_visibility_scores_path)
 
-points3D_per_session_scores = points3D_per_session_scores_matrix.sum(axis=0)
-points3D_per_image_scores = points3D_per_image_scores_matrix.sum(axis=0)
-points3D_visibility_vals = points3D_visibility_matrix.sum(axis=0)
-
-points3D_per_session_scores = points3D_per_session_scores.reshape([1, points3D_per_session_scores.shape[0]])
-points3D_per_image_scores = points3D_per_image_scores.reshape([1, points3D_per_image_scores.shape[0]])
-points3D_visibility_vals = points3D_visibility_vals.reshape([1, points3D_visibility_vals.shape[0]])
-
+# normalising the scores
 points3D_per_session_scores = points3D_per_session_scores / points3D_per_session_scores.sum()
 points3D_per_image_scores = points3D_per_image_scores / points3D_per_image_scores.sum()
-points3D_visibility_vals = points3D_visibility_vals / points3D_visibility_vals.sum()
+points3D_visibility_scores = points3D_visibility_scores / points3D_visibility_scores.sum()
 
-points3D_live_model_scores = [points3D_per_image_scores, points3D_per_session_scores, points3D_visibility_vals] #the order matters - (for later on PROSAC etc, look at ransac_comparison.py)!
+points3D_live_model_scores = [points3D_per_image_scores, points3D_per_session_scores, points3D_visibility_scores] #the order matters - (for later on PROSAC etc, look at ransac_comparison.py)!
 # Done getting the scores
 
 # 1: Feature matching
@@ -86,109 +81,47 @@ points3D_live_model_scores = [points3D_per_image_scores, points3D_per_session_sc
 #query descs against base model descs
 if(do_feature_matching):
     print("Feature matching...")
-    matches_base = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_base, points3D_xyz_base, parameters.ratio_test_val, verbose = True)
+    matches_base = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_base, points3D_xyz_id_base, parameters.ratio_test_val, base_points_3D_ids)
     np.save(parameters.matches_base_save_path, matches_base)
-    print()
-    matches_live = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_live, points3D_xyz_live, parameters.ratio_test_val, verbose = True, points_scores_array = points3D_live_model_scores)
+    matches_live = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_live, points3D_xyz_id_live, parameters.ratio_test_val, live_points_3D_ids, points_scores_array = points3D_live_model_scores)
     np.save(parameters.matches_live_save_path, matches_live)
 else:
     print("Skipping feature matching...")
     matches_base = np.load(parameters.matches_base_save_path, allow_pickle=True).item()
     matches_live = np.load(parameters.matches_live_save_path, allow_pickle=True).item()
 
-# Print options
-np.set_printoptions(precision=2)
-np.set_printoptions(suppress=True)
+# 2: Comparisons
+print(f"Running benchmark with number of iterations: {no_iterations}")
 
-# 2: RANSAC Comparison
-results = {}
+print(f"Base Model: {RANSACParameters.ransac_base}")
+est_poses_results = benchmark(ransac, matches_base, localised_query_images_names, Ks, no_iterations)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_base}.npy"), est_poses_results)
 
-print()
-print("Base Model")
-print(" RANSAC")
-inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac, matches_base, query_images_names, K, query_images_ground_truth_poses, scale, verbose = True)
-print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_base] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
-
-print()
-print(" PROSAC only lowe's ratio - (lowes_distance_inverse_ratio)")
-inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, prosac, matches_base, query_images_names, K, query_images_ground_truth_poses, scale, val_idx= RANSACParameters.lowes_distance_inverse_ratio_index, verbose = True)
-print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.prosac_base] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+print(f"Base Model: {RANSACParameters.prosac_base}")
+est_poses_results = benchmark(prosac, matches_base, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.lowes_distance_inverse_ratio_index)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.prosac_base}.npy"), est_poses_results)
 
 # -----
 
-print()
-print("Live Model")
-print(" RANSAC") #No need to run RANSAC multiple times here as it is not using any of the points3D scores
-inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, verbose = True)
-print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_live] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+print(f"Live Model: {RANSACParameters.ransac_live}")
+est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_live}.npy"), est_poses_results)
 
-print()
-print(" RANSAC + dist per_image_score val:")
-inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_per_image_score, verbose = True)
-print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_dist_per_image_score] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+print(f"Live Model: {RANSACParameters.ransac_dist_per_image_score}")
+est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_per_image_score)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_per_image_score}.npy"), est_poses_results)
 
-print()
-print(" RANSAC + dist per_session_score score:")
-inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_pre_session_score, verbose = True)
-print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_dist_per_session_score] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+print(f"Live Model: {RANSACParameters.ransac_dist_per_session_score}")
+est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_pre_session_score)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_per_session_score}.npy"), est_poses_results)
 
-print()
-print(" RANSAC + dist visibility score:")
-inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-    benchmark(parameters.benchmarks_iters, ransac_dist, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx = RANSACParameters.use_ransac_dist_visibility_score, verbose = True)
-print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-results[RANSACParameters.ransac_dist_visibility_score] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
+print(f"Live Model: {RANSACParameters.ransac_dist_visibility_score}")
+est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_visibility_score)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_visibility_score}.npy"), est_poses_results)
 
-prosac_value_indices = [RANSACParameters.lowes_distance_inverse_ratio_index,
-                        RANSACParameters.higher_neighbour_val_index,
-                        RANSACParameters.higher_neighbour_score_index,
-                        RANSACParameters.higher_visibility_score_index,
-                        RANSACParameters.lowes_ratio_per_session_score_val_ratio_index,
-                        RANSACParameters.lowes_ratio_per_image_score_ratio_index,
-                        RANSACParameters.lowes_ratio_by_higher_per_session_score_index,
-                        RANSACParameters.lowes_ratio_by_higher_per_image_score_index]
+for prosac_val_index, prosac_val_name in RANSACParameters.prosac_value_titles.items():
+    print(f"Live Model (PROSAC): {prosac_val_name}")
+    est_poses_results = benchmark(prosac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx=prosac_val_index)
+    np.save(os.path.join(parameters.results_path, f"{prosac_val_name}.npy"), est_poses_results)
 
-print()
-print(" PROSAC versions")
-np.seterr(divide='ignore', invalid='ignore', over='ignore') # this is because some matches will have a reliability_score of zero. so you might have a division by zero
-for prosac_sort_val in prosac_value_indices:
-    print()
-    prosac_type = RANSACParameters.prosac_value_titles[prosac_sort_val]
-    print(prosac_type)
-    inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall = \
-        benchmark(parameters.benchmarks_iters, prosac, matches_live, query_images_names, K, query_images_ground_truth_poses, scale, val_idx=prosac_sort_val, verbose = True)
-    print(" Inliers: %2.1f | Outliers: %2.1f | Iterations: %2.1f | Time: %2.2f" % (inlers_no, outliers, iterations, time))
-    print(" Trans Error (m): %2.2f | Rotation (Degrees): %2.2f" % (trans_errors_overall, rot_errors_overall))
-    results[prosac_type] = [inlers_no, outliers, iterations, time, trans_errors_overall, rot_errors_overall]
-
-np.save(parameters.save_results_path, results)
-
-print("Writing, result.npy to .csv file")
-result_file_csv_output_path = os.path.join(parameters.save_results_csv_path)
-
-header = ['Method Name', 'Inliers (%)', 'Outliers (%)', 'Iterations', 'Total Time (s)', 'Trans Error (m)', 'Rotation Error (d)']
-with open(result_file_csv_output_path, 'w', encoding='UTF8') as f:
-    writer = csv.writer(f)
-    writer.writerow(header)
-    for method_name, data in results.items():
-        row = [method_name, data[0], data[1], data[2], data[3], data[4], data[5]]
-        writer.writerow(row)
-
-print()
 print("Done !")

@@ -37,6 +37,8 @@ import struct
 import argparse
 import time
 
+from tqdm import tqdm
+
 Point3D = collections.namedtuple(
     "Point3D", ["id", "xyz", "rgb", "error", "image_ids", "point2D_idxs"])
 
@@ -60,7 +62,7 @@ def read_points3d_default(path_to_model_file):
     points3D = {}
     with open(path_to_model_file, "rb") as fid:
         num_points = read_next_bytes(fid, 8, "Q")[0]
-        for point_line_index in range(num_points):
+        for _ in tqdm(range(num_points)):
             binary_point_line_properties = read_next_bytes(
                 fid, num_bytes=43, format_char_sequence="QdddBBBd")
             point3D_id = binary_point_line_properties[0]
@@ -90,7 +92,7 @@ def read_points3d_binary(path_to_model_file):
     xyz_values = np.empty((0, 4))
     with open(path_to_model_file, "rb") as fid:
         num_points = read_next_bytes(fid, 8, "Q")[0]
-        for point_line_index in range(num_points):
+        for point_line_index in tqdm(range(num_points)):
             binary_point_line_properties = read_next_bytes(
                 fid, num_bytes=43, format_char_sequence="QdddBBBd")
             point3D_id = binary_point_line_properties[0]
@@ -170,12 +172,15 @@ def get_points3D(id): #this is assumed to be used for the new model (localised)
     points3D = read_points3d_binary_id("/Users/alex/Projects/EngDLocalProjects/Lego/fullpipeline/colmap_data/data/new_model/points3D.bin", id)
     return points3D
 
-def get_points3D_xyz(points3D):
-    xyzs = np.empty([0,3])
-    for key, value in points3D.items():
+def get_points3D_xyz_id(points3D):
+    xyz_ids = np.zeros([len(points3D.items()),4])
+    p_idx = 0
+    for key, value in tqdm(points3D.items()):
         xyz = value.xyz.reshape([1,3])
-        xyzs = np.r_[xyzs, xyz]
-    return xyzs
+        xyz_id = np.append(xyz, value.id)
+        xyz_ids[p_idx] = xyz_id
+        p_idx+=1
+    return xyz_ids
 
 # create points id and index relationship
 # points3D_indexing[i] = id

@@ -9,6 +9,9 @@ from tqdm import tqdm
 from database import COLMAPDatabase
 from undistort_img import undistort_cmu
 
+def remove_csv_files_from_directory(dir):
+    for file in glob.glob(os.path.join(dir, "*.csv")):
+        os.remove(file)
 
 def remove_folder_safe(folder_path):
     print(f"Deleting {folder_path}")
@@ -121,6 +124,7 @@ def arrange_sessions(source, dest):
 
             # one of the session folders will be the base so it will be always empty
             if (day == 4 and month == 4):
+                print("This is base and should never print..")
                 cv2.imwrite(os.path.join(os.path.join(sessions_path[0], tail)), undistorted_img)
             if (day == 1 and month == 9):
                 cv2.imwrite(os.path.join(os.path.join(sessions_path[1], tail)), undistorted_img)
@@ -147,20 +151,23 @@ def arrange_sessions(source, dest):
 
     return sessions_path
 
+# CMU (for Coop I use the previous data)
 def create_query_image_names_txt(txt_path, images_path):
     with open(txt_path, 'w') as f:
         for image in glob.glob(os.path.join(images_path,'*/*.jpg'), recursive=True):
             image_loc = image.split(f"{images_path}/")[1]
             f.write(f"{image_loc}\n")
 
+# Lamar
 def create_query_image_names_txt_lamar(txt_path, images_path):
     with open(txt_path, 'w') as f:
         for image in glob.glob(os.path.join(images_path,'*/*/*.jpg'), recursive=True):
             image_loc = image.split(f"{images_path}/")[1]
             f.write(f"{image_loc}\n")
 
-# returns the number of all images regardless of being localised or for each session, use for CMU only.
+# returns the number of all images regardless of being localised or not for each session, use for CMU only.
 # 07/12/2022: used the same code as it was in 2019 just removed the code that generates the query_name.txt
+# 10/01/2023: this should work for Coop as well - I just used the previous data for Coop (from weatherwax)
 def gen_query_txt(dir, base_images_no = None):
     session_nums = []
     images = []
@@ -174,3 +181,19 @@ def gen_query_txt(dir, base_images_no = None):
 
     session_nums =  [base_images_no] + session_nums
     if(base_images_no is not None) : np.savetxt(dir+"/../session_lengths.txt", session_nums)
+
+# 10/01/2023
+# This will create the sessions lengths file
+def gen_query_txt_lamar(live_path, lamar_live_images, base_images_no = None):
+    session_nums = []
+    images = []
+    for folder in glob.glob(os.path.join(lamar_live_images,"*")):
+        i=0
+        for file in glob.glob(os.path.join(folder,"images","*.jpg")):
+            image_name = file.split('images/')[1]
+            images.append(image_name)
+            i+=1
+        session_nums.append(i)
+
+    session_nums =  [base_images_no] + session_nums
+    if(base_images_no is not None) : np.savetxt(os.path.join(live_path, "session_lengths.txt"), session_nums)

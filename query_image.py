@@ -5,6 +5,8 @@ import numpy as np
 import struct
 import collections
 
+from tqdm import tqdm
+
 CameraModel = collections.namedtuple(
     "CameraModel", ["model_id", "model_name", "num_params"])
 Camera = collections.namedtuple(
@@ -64,7 +66,7 @@ def read_images_binary(path_to_model_file):
     images = {}
     with open(path_to_model_file, "rb") as fid:
         num_reg_images = read_next_bytes(fid, 8, "Q")[0]
-        for image_index in range(num_reg_images):
+        for image_index in tqdm(range(num_reg_images)):
             binary_image_properties = read_next_bytes(
                 fid, num_bytes=64, format_char_sequence="idddddddi")
             image_id = binary_image_properties[0]
@@ -150,12 +152,11 @@ def get_images_camera_principal_axis_vectors(images, Ks):
     return principal_axis_vectors
 
 def image_localised(name, images):
-    image_id = None
-    for k, v in images.items():
-        if (v.name == name):
-            image_id = v.id
-            return image_id
-    return image_id
+    image_id = [ img_data.id for id, img_data in images.items() if img_data.name == name ]
+    if(len(image_id) == 1): #needs to be one
+        return image_id[0]
+    else:
+        return None
 
 """
 The reconstructed pose of an image is specified as the projection 
@@ -175,7 +176,7 @@ def get_query_image_global_pose_new_model(name):
 
 def get_query_images_pose_from_images(names, images):
     images_name_pose = {}
-    for name in names:
+    for name in tqdm(names):
         pose = get_query_image_pose_from_images(name, images)
         images_name_pose[name] = pose
     return images_name_pose
@@ -276,15 +277,13 @@ def load_images_from_text_file(path):
     images = [x.strip() for x in images]
     return images
 
-# This will take a list of images, check which are localised and
-# returns only those. It could be a subset of images_bin or all
-def get_localised_image_by_names(names, images_bin_path):
-    images = read_images_binary(images_bin_path)
-    localised_images = []
-    for name in names:
-        if(image_localised(name, images) != None):
-            localised_images.append(name)
-    return localised_images
+# This will take a list of images, check which ones are localised and returns the localised images
+def get_localised_image_by_names(query_names, localised_images):
+    result_imgs = []
+    for name in tqdm(query_names):
+        if(image_localised(name, localised_images) != None):
+            result_imgs.append(name)
+    return result_imgs
 
 def get_image_by_name(name, images):
     image = None
@@ -317,6 +316,28 @@ def read_cameras_binary(path_to_model_file):
                                         params=np.array(params))
         assert len(cameras) == num_cameras
     return cameras
+
+def get_intrinsics(images, cameras_bin):
+    Ks = {}
+    for id, img_data in images.items():
+        camera = cameras_bin[img_data.camera_id]
+        camera_params = camera.params
+        K = None
+        if(camera_params.size == 3):
+            fx = camera_params[0]
+            fy = camera_params[0]
+            cx = camera_params[1]
+            cy = camera_params[2]
+            K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+        if(camera_params.size == 4):
+            fx = camera_params[0]
+            fy = camera_params[1]
+            cx = camera_params[2]
+            cy = camera_params[3]
+            K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+        assert(K is not None)
+        Ks[img_data.name] = K
+    return Ks
 
 def get_intrinsics_from_camera_bin(cameras_path, id):
     cameras = read_cameras_binary(cameras_path)
@@ -367,3 +388,99 @@ def save_heatmap_of_image(image_path, K, P, points3D, outpath, values):
         cv2.circle(image, center, 7, (0, 0, 255), 2)
         cv2.circle(image, center, 5, (rgb_val, rgb_val, rgb_val), -1)
     cv2.imwrite(outpath, image)
+
+# 29/12/2022: Copied from Neural Filtering
+def QuaternionFromMatrix(matrix):
+    '''Transform a rotation matrix into a quaternion.'''
+
+    M = np.array(matrix, dtype=np.float64, copy=False)[:4, :4]
+    m00 = M[0, 0]
+    m01 = M[0, 1]
+    m02 = M[0, 2]
+    m10 = M[1, 0]
+    m11 = M[1, 1]
+    m12 = M[1, 2]
+    m20 = M[2, 0]
+    m21 = M[2, 1]
+    m22 = M[2, 2]
+
+    K = np.array([[m00 - m11 - m22, 0.0, 0.0, 0.0],
+              [m01 + m10, m11 - m00 - m22, 0.0, 0.0],
+              [m02 + m20, m12 + m21, m22 - m00 - m11, 0.0],
+              [m21 - m12, m02 - m20, m10 - m01, m00 + m11 + m22]])
+    K /= 3.0
+
+    # The quaternion is the eigenvector of K that corresponds to the largest eigenvalue.
+    w, V = np.linalg.eigh(K)
+    q = V[[3, 0, 1, 2], np.argmax(w)]
+
+    if q[0] < 0:
+        np.negative(q, q)
+
+    return q
+
+def get_col(point, map_id_idx, images, vm_positive_value):
+    col = np.zeros([len(images),1])
+    for img_id in point.image_ids:
+        idx = map_id_idx[img_id]
+        col[idx, 0] = vm_positive_value
+    return col
+
+def get_points3D_ids_row(points3D):
+    idx = 0
+    points_ids_row = np.zeros([len(points3D)]).reshape([1, len(points3D)])
+    for k, v in points3D.items():
+        points_ids_row[0, idx] = v.id
+        idx+=1
+    return points_ids_row
+
+def get_images_map_id_idx(images):
+    # create a dict that uses images id and an index from 0 to total number of images as value
+    images_map_id_idx = {}
+    idx = 0
+    for id, image in images.items():
+        assert id == image.id
+        images_map_id_idx[image.id] = idx
+        idx += 1
+    return images_map_id_idx
+
+# creates 2d-3d matches data for ransac comparison
+def get_keypoints_xy(db, image_id):
+    query_image_keypoints_data = db.execute("SELECT data FROM keypoints WHERE image_id = " + "'" + image_id + "'")
+    query_image_keypoints_data = query_image_keypoints_data.fetchone()[0]
+    query_image_keypoints_data_cols = db.execute("SELECT cols FROM keypoints WHERE image_id = " + "'" + image_id + "'")
+    query_image_keypoints_data_cols = int(query_image_keypoints_data_cols.fetchone()[0])
+    query_image_keypoints_data = db.blob_to_array(query_image_keypoints_data, np.float32)
+    query_image_keypoints_data_rows = int(np.shape(query_image_keypoints_data)[0] / query_image_keypoints_data_cols)
+    query_image_keypoints_data = query_image_keypoints_data.reshape(query_image_keypoints_data_rows, query_image_keypoints_data_cols)
+    query_image_keypoints_data_xy = query_image_keypoints_data[:, 0:2]
+    return query_image_keypoints_data_xy
+
+# indexing is the same as points3D indexing for trainDescriptors
+def get_queryDescriptors(db, image_id):
+    query_image_descriptors_data = db.execute("SELECT data FROM descriptors WHERE image_id = " + "'" + image_id + "'")
+    query_image_descriptors_data = query_image_descriptors_data.fetchone()[0]
+    query_image_descriptors_data = db.blob_to_array(query_image_descriptors_data, np.uint8)
+    descs_rows = int(np.shape(query_image_descriptors_data)[0] / 128)
+    query_image_descriptors_data = query_image_descriptors_data.reshape([descs_rows, 128])
+
+    queryDescriptors = query_image_descriptors_data.astype(np.float32)
+    return queryDescriptors
+
+def get_image_id(db, query_image):
+    image_id = db.execute("SELECT image_id FROM images WHERE name = " + "'" + query_image + "'")
+    image_id = str(image_id.fetchone()[0])
+    return image_id
+
+# def save_image_projected_points(img_data, image_path, K, Rt, points3D, outpath):
+#     image = cv2.imread(image_path)
+#     points = K.dot(Rt.dot(points3D.transpose())[0:3, :])
+#     points = points // points[2,:]
+#     points = points.transpose()
+#     import pdb; pdb.set_trace()
+#     for i in range(len(points)):
+#         x = int(points[i][0])
+#         y = int(points[i][1])
+#         center = (x, y)
+#         cv2.circle(image, center, 4, (0, 0, 255), -1)
+#     cv2.imwrite(outpath, image)

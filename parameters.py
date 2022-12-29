@@ -1,16 +1,19 @@
 import os
 
-
 class Parameters(object):
 
     def __init__(self, base_path):
-        self.benchmarks_iters = 5
+        self.results_path = os.path.join(base_path,"results")
+        self.aggregated_results_csv = os.path.join(base_path,"evaluation_results_2022_aggregated.csv")
         self.avg_descs_base_path = os.path.join(base_path,"avg_descs_base.npy")
         self.avg_descs_live_path = os.path.join(base_path,"avg_descs_live.npy")
 
-        self.per_image_decay_matrix_path = os.path.join(base_path,"heatmap_matrix_avg_points_values.npy")
-        self.per_session_decay_matrix_path = os.path.join(base_path,"reliability_scores.npy")
-        self.binary_visibility_matrix_path = os.path.join(base_path,"binary_visibility_values.npy")
+        # 30/12/2022 still using the old names for filenames (_matrix) - nvm
+        self.per_image_decay_scores_path = os.path.join(base_path, "per_image_score.npy")
+        self.per_session_decay_scores_path = os.path.join(base_path, "per_session_score.npy")
+        self.binary_visibility_scores_path = os.path.join(base_path, "visibility_scores.npy")
+        self.live_points_3D_ids_file_path = os.path.join(base_path,"live_points_3D_ids.npy")
+        self.base_points_3D_ids_file_path = os.path.join(base_path,"base_points_3D_ids.npy")
 
         self.matches_base_save_path = os.path.join(base_path,"matches_base.npy")
         self.matches_live_save_path = os.path.join(base_path,"matches_live.npy")
@@ -47,4 +50,10 @@ class Parameters(object):
         # This is the scale you will have to multiply your COLMAP model's acquired camera centers distance with.
         # Pass this in pose evaluator, and it will be multiplied with the distance of the gt camera center and your estimated camera center
         # from your COLMAP model. This is valid for ARCORE only
-        self.ARCORE_scale_path = os.path.join(base_path,"scale.txt")
+        # 30/12/2022 - New path added
+        self.ARCORE_scale_path = os.path.join(base_path, "ML_data", "prepared_data", "scale.npy")
+
+        self.debug_images_path = os.path.join(base_path, "debug_images")
+        self.debug_images_base_path = os.path.join(base_path, "debug_images_base")
+        self.debug_images_live_path = os.path.join(base_path, "debug_images_live")
+        self.debug_images_gt_path = os.path.join(base_path, "debug_images_gt")

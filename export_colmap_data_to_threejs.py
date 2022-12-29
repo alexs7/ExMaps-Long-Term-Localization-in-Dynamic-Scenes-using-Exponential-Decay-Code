@@ -1,5 +1,5 @@
 from parameters import Parameters
-from point3D_loader import read_points3d_default, get_points3D_xyz, index_dict, index_dict_reverse
+from point3D_loader import read_points3d_default, get_points3D_xyz_id, index_dict, index_dict_reverse
 import numpy as np
 import cv2
 from query_image import read_images_binary

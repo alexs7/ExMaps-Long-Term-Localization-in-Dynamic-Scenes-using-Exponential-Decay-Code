@@ -1,4 +1,33 @@
-## ExMaps: Long-Term Localization in Dynamic Scenes using Exponential Decay
+# ExMaps: Long-Term Localization in Dynamic Scenes using Exponential Decay
+
+## Instructions (2023)
+
+The files you need to run are:
+
+1. `get_cmu_data.py`
+   1. Read the first argument comments in the file to understand what it does
+   2. There is code that downloads and extract all CMU slices
+
+2. `get_coop_data.py`
+   1. Read the first argument comments in the file to understand what it does
+   2. This is using previous data, so only the decay is applied and results are generated
+
+3. `get_lamar_data.py`
+   1. Read the first argument comments in the file to understand what it does
+   2. You have to download the data
+   3. You need to specify a folder for all the data to be extracted to
+
+For all the above the flag `do_matching` needs to be set to 1 the first time. Then when you
+run the code again you can set it to 0. This will save you time.
+
+### Results
+
+Results are generated in the `results` folder of each dataset. The results are saved in a `.csv` file.
+At each run the result `.csv` file from the `results` folder is copied to the parent folder, which is the
+dataset folder. This is done to keep track of the results. 
+Then a file called `evaluation_results_2022_aggregated.csv` is generated. This is the file to read from.
+
+## Below are the old instructions (pre 2023)
 
 ### This repo contains the code for the above paper accepted in WACV2021.
 

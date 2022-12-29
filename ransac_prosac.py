@@ -4,7 +4,6 @@ import cv2
 from RANSACParameters import RANSACParameters
 import pycolmap
 
-MAX_RANSAC_ITERS = RANSACParameters.ransac_prosac_iterations
 ERROR_THRESHOLD = RANSACParameters.ransac_prosac_error_threshold
 # intrinsics matrix
 # NOTE: The assumption is that the camera for the gt images will always be 3.
@@ -12,8 +11,9 @@ ERROR_THRESHOLD = RANSACParameters.ransac_prosac_error_threshold
 # This is because of a COLMAP bug that breaks when I set refining focal length to false.
 # Remember that at this point I evaluate query images (gt/images) not session images.
 # So I have to pick up their intrinsics which they will be different from base and live.
-# TODO: in the future they will all be the same.
-# NOTE: The poses returned from this file are are in camera space.
+# NOTE: 24/01/2023, The intrinsics are now passed in as a parameter, a dictionary of image_name:K
+# NOTE: 24/01/2023, The iterations as now passed are now passed in as a parameter
+# NOTE: The poses returned from this file are in camera space.
 
 # This is not used anymore in this file (09/12/2022)
 # def model_refit(img_points, obj_points, K):
@@ -56,7 +56,7 @@ def model_evaluate(matches_for_image, Rt, threshold, K):
     inliers = matches_for_image[indices, :]
     return inliers, indices
 
-def ransac(matches_for_image, intrinsics):
+def ransac(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
     eps = 1e-15
     s = 4  # or minimal_sample_size
     p = 0.99 # this is a typical value
@@ -126,7 +126,7 @@ def ransac(matches_for_image, intrinsics):
 
     return best_model
 
-def ransac_dist(matches_for_image, intrinsics):
+def ransac_dist(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
     eps = 1e-15
     s = 4  # or minimal_sample_size
     p = 0.99 # this is a typical value
@@ -210,7 +210,7 @@ def ransac_dist(matches_for_image, intrinsics):
 # So, you can compare models either by number of inliers (higher is
 # better) or by sum of errors (lower is better).
 
-def prosac(sorted_matches, intrinsics):
+def prosac(sorted_matches, intrinsics, MAX_RANSAC_ITERS):
     CORRESPONDENCES = sorted_matches.shape[0]
     isInlier = np.zeros([1,CORRESPONDENCES])
     SAMPLE_SIZE = 4

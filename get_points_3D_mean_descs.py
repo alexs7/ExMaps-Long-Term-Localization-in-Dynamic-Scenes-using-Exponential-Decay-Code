@@ -6,18 +6,22 @@
 import sys
 
 import numpy as np
+from tqdm import tqdm
+
 from database import COLMAPDatabase
 from parameters import Parameters
 from point3D_loader import read_points3d_default, index_dict
 from query_image import read_images_binary, get_images_ids, get_images_names_from_sessions_numbers
 
+SIZE = 129
 def get_desc_avg(points3D, db):
-    points_mean_descs = np.empty([0, 128])
+    points_mean_descs_ids = np.empty([len(points3D.keys()), SIZE])
 
-    for k,v in points3D.items():
+    point3D_vm_col_idx = 0
+    for k,v in tqdm(points3D.items()):
         point_id = v.id
-        points3D_descs = np.empty([0, 128])
         points_image_ids = points3D[point_id].image_ids #COLMAP adds the image twice some times.
+        points3D_descs = np.empty([len(points_image_ids), 128])
         # Loop through the points' image ids and check if it is seen by any image_ids
         # If it is seen then get the desc for each id.
         for k in range(len(points_image_ids)):
@@ -29,11 +33,13 @@ def get_desc_avg(points3D, db):
             keypoint_index = points3D[point_id].point2D_idxs[k]
             desc = descs[keypoint_index] #keypoints and descs are ordered the same (so I use the point2D_idxs to index descs )
             desc = desc.reshape(1, 128) #this is the desc of keypoint with index, keypoint_index, from image with id, id.
-            points3D_descs = np.r_[points3D_descs, desc]
+            points3D_descs[k] = desc
 
         # adding and calculating the mean here!
-        points_mean_descs = np.r_[points_mean_descs, points3D_descs.mean(axis=0).reshape(1,128)]
-    return points_mean_descs
+        mean = points3D_descs.mean(axis=0)
+        points_mean_descs_ids[point3D_vm_col_idx] = np.append(mean, point_id).reshape(1,SIZE)
+        point3D_vm_col_idx += 1
+    return points_mean_descs_ids
 
 # 08/12/2022 - base path should contain base, live, gt model
 base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/" or add "exmaps_data"
@@ -55,8 +61,10 @@ live_model_points3D = read_points3d_default(parameters.live_model_points3D_path)
 # 08/12/2022 - it seems that you are not doing the above - you are using live and base seperately which makes more sense.
 
 # 2 cases base and live images points3D descs
+print("Getting base avg descs")
 avgs_base = get_desc_avg(base_model_points3D, db_base)
 np.save(parameters.avg_descs_base_path, avgs_base)
 
+print("Getting live avg descs")
 avgs_live = get_desc_avg(live_model_points3D, db_live)
 np.save(parameters.avg_descs_live_path, avgs_live)
