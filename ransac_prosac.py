@@ -2,6 +2,7 @@
 import numpy as np
 import cv2
 from RANSACParameters import RANSACParameters
+import pycolmap
 
 MAX_RANSAC_ITERS = RANSACParameters.ransac_prosac_iterations
 ERROR_THRESHOLD = RANSACParameters.ransac_prosac_error_threshold
@@ -12,6 +13,7 @@ ERROR_THRESHOLD = RANSACParameters.ransac_prosac_error_threshold
 # Remember that at this point I evaluate query images (gt/images) not session images.
 # So I have to pick up their intrinsics which they will be different from base and live.
 # TODO: in the future they will all be the same.
+# NOTE: The poses returned from this file are are in camera space.
 
 # This is not used anymore in this file (09/12/2022)
 # def model_refit(img_points, obj_points, K):

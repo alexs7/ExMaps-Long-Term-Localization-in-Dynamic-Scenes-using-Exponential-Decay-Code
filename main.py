@@ -81,7 +81,7 @@ points3D_live_model_scores = [points3D_per_image_scores, points3D_per_session_sc
 
 # TIP: Remember we are focusing on the model (and its descs) here so the cases to test are:
 # query images , train_descriptors from live model : will match base + query images descs to live_model avg descs -> (this can have multiple cases depending on the points3D score used)
-# query images , train_descriptors from base model : will match base + query images descs images descs to base avg descs -> (can only be one case...)
+# query images , train_descriptors from base model : will match base + query images descs to base avg descs -> (can only be one case...)
 
 #query descs against base model descs
 if(do_feature_matching):
