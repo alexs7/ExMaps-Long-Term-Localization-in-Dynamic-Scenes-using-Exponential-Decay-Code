@@ -91,6 +91,9 @@ def project_points_debug(model_path, images_paths, output_folder_path, query_nam
 
 def feature_extractor_lamar_wrapper(db_path, f_extraction_template_path, model_images_path,
                                     cameras_files_path, raw_data_path, reconstruction):
+    # NOTE: Do not compare the ids from 'reconstruction' with the ids in the database. You create the db.
+    # The authors created the 'reconstruction' object from whatever. So the ids are NOT the same.
+
     images_paths = []
     # iphone only images !
     ios_images = {k: v for (k, v) in reconstruction.images.items() if ("ios" in v.name)}
