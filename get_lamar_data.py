@@ -115,6 +115,9 @@ def feature_extractor_lamar_wrapper(db_path, f_extraction_template_path, model_i
         # Unlike CMU we use SIFT-GPU here due to data volume
         camera_images = {k: v for (k, v) in ios_images.items() if (v.camera_id == cam_id)}
 
+        if(len(camera_images) == 0): #because I only use the ios images, cim_id might have only images from hololens (thus empty)
+            continue
+
         # image paths relative to "raw_data_path", i.e. 'ios_2022-07-03_16.00.37_000/images/151298057352.jpg'
         # relative ones (to model_images_path)
         paths = [str(Path(v.name).relative_to(raw_data_path)) for _, v in camera_images.items()]
