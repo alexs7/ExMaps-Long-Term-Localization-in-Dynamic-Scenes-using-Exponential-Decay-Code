@@ -138,8 +138,8 @@ create_all_data = sys.argv[3] == "1" #set to "0" if you just want to generate th
 do_matching = sys.argv[4] #this is for main.py. Set to 0 if you are already have the matches from previous runs
 
 if(create_all_data):
+    remove_folder_safe(param_path)
     remove_folder_safe(parameters.debug_images_base_path)
-
     capture_sessions = os.path.join(capture_path, "sessions")
 
     base_raw_data_path = "map/raw_data"
