@@ -210,7 +210,7 @@ if(create_all_data):
     live_reconstruction = pycolmap.Reconstruction(live_model_path)
     #
     live_cameras_files_path = os.path.join(param_path, "live/camera_files_extra")
-    # # remove_folder_safe(live_cameras_files_path)
+    remove_folder_safe(live_cameras_files_path)
     live_raw_data_path = "query_phone/raw_data"
     live_images_files_path = os.path.join(capture_path, "sessions", live_raw_data_path)
 
