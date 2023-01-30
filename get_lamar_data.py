@@ -144,71 +144,71 @@ create_all_data = sys.argv[3] == "1" #set to "0" if you just want to generate th
 do_matching = sys.argv[4] #this is for main.py. Set to 0 if you are already have the matches from previous runs
 
 if(create_all_data):
-    # remove_folder_safe(param_path)
-    # remove_folder_safe(parameters.debug_images_base_path)
-    # capture_sessions = os.path.join(capture_path, "sessions")
-    #
-    # base_raw_data_path = "map/raw_data"
-    # base_images_path = os.path.join(capture_path, "sessions", base_raw_data_path)
+    remove_folder_safe(param_path)
+    remove_folder_safe(parameters.debug_images_base_path)
+    capture_sessions = os.path.join(capture_path, "sessions")
+
+    base_raw_data_path = "map/raw_data"
+    base_images_path = os.path.join(capture_path, "sessions", base_raw_data_path)
     feature_extraction_template_path = "template_inis/lamar_feature_extraction/colmap_feature_extraction_template.ini"
-    #
+
     capture = Capture.load(Path(capture_path))
-    # map_session_key = "map"
-    # session = capture.sessions[map_session_key]  # each session has a unique id
-    #
-    # base_path = os.path.join(param_path, "base")
+    map_session_key = "map"
+    session = capture.sessions[map_session_key]  # each session has a unique id
+
+    base_path = os.path.join(param_path, "base")
     base_model_path = os.path.join(param_path, "base/model")
     base_triangulated_model_path = os.path.join(param_path, "base/triangulated_model")
-    # base_cameras_files_path = os.path.join(param_path, "base/camera_files_extra")
-    # remove_folder_safe(base_path)
-    # remove_folder_safe(base_model_path)
-    # remove_folder_safe(base_cameras_files_path)
-    # remove_folder_safe(base_triangulated_model_path)
-    #
-    # run_capture_to_empty_colmap.run(capture, ["map"], Path(base_model_path), ext=".txt") #GT poses in metric
-    # # I create the "empty" model because I need access to the cameras so I can create
-    # # the config files for each to use in the feature extraction
-    # base_reconstruction = pycolmap.Reconstruction(base_model_path)
-    #
-    # # Base Model
-    # base_db_path = os.path.join(base_path, "database.db")
-    #
-    # # 1, feature extractor wrapper - returns a list of images (relative path)
-    # base_images_paths = feature_extractor_lamar_wrapper(base_db_path, feature_extraction_template_path, base_images_path,
-    #                                                     base_cameras_files_path, base_raw_data_path, base_reconstruction)
-    #
-    # # 2, run the matcher
-    # print("Matching images on the live model")
-    # images_file_txt_path = os.path.join(base_model_path, "images.txt")
-    # # write to images_file_txt_path the images you want in the base model (subset)
-    # # The method below will create an empty almost .txt file that the triangulator will use for poses
-    # arrange_images_txt_file_lamar(base_db_path, base_images_paths, images_file_txt_path) #as per COLMAP FAQ
-    # colmap.vocab_tree_matcher(base_db_path)
-    #
-    # # 3, triangulate points
-    # colmap.point_triangulator(base_db_path, base_images_path, base_model_path, base_triangulated_model_path)
-    # project_points_debug(base_triangulated_model_path, base_images_path, parameters.debug_images_base_path)
-    #
-    # print("Moving on to live model..")
-    #
-    # # 4, make live folders
+    base_cameras_files_path = os.path.join(param_path, "base/camera_files_extra")
+    remove_folder_safe(base_path)
+    remove_folder_safe(base_model_path)
+    remove_folder_safe(base_cameras_files_path)
+    remove_folder_safe(base_triangulated_model_path)
+
+    run_capture_to_empty_colmap.run(capture, ["map"], Path(base_model_path), ext=".txt") #GT poses in metric
+    # I create the "empty" model because I need access to the cameras so I can create
+    # the config files for each to use in the feature extraction
+    base_reconstruction = pycolmap.Reconstruction(base_model_path)
+
+    # Base Model
+    base_db_path = os.path.join(base_path, "database.db")
+
+    # 1, feature extractor wrapper - returns a list of images (relative path)
+    base_images_paths = feature_extractor_lamar_wrapper(base_db_path, feature_extraction_template_path, base_images_path,
+                                                        base_cameras_files_path, base_raw_data_path, base_reconstruction)
+
+    # 2, run the matcher
+    print("Matching images on the live model")
+    images_file_txt_path = os.path.join(base_model_path, "images.txt")
+    # write to images_file_txt_path the images you want in the base model (subset)
+    # The method below will create an empty almost .txt file that the triangulator will use for poses
+    arrange_images_txt_file_lamar(base_db_path, base_images_paths, images_file_txt_path) #as per COLMAP FAQ
+    colmap.vocab_tree_matcher(base_db_path)
+
+    # 3, triangulate points
+    colmap.point_triangulator(base_db_path, base_images_path, base_model_path, base_triangulated_model_path)
+    project_points_debug(base_triangulated_model_path, base_images_path, parameters.debug_images_base_path)
+
+    print("Moving on to live model..")
+
+    # 4, make live folders
     live_path = os.path.join(param_path, "live")
     live_model_path = os.path.join(param_path, "live/model")
     live_registered_model_path = os.path.join(param_path, "live/registered_model")
-    # remove_folder_safe(live_path)
-    # remove_folder_safe(live_model_path)
-    # remove_folder_safe(live_registered_model_path)
-    # remove_folder_safe(parameters.debug_images_live_path)
-    #
-    # # 5, copy base db to live
+    remove_folder_safe(live_path)
+    remove_folder_safe(live_model_path)
+    remove_folder_safe(live_registered_model_path)
+    remove_folder_safe(parameters.debug_images_live_path)
+
+    # 5, copy base db to live
     live_db_path = os.path.join(live_path, "database.db")
-    # print("Copying base db to live..")
-    # shutil.copyfile(base_db_path, live_db_path)
-    # query_session_phone = capture.sessions["query_phone"] #this contains multiple sessions
-    #
-    # run_capture_to_empty_colmap.run(capture, ["query_phone"], Path(live_model_path), ext=".txt")
+    print("Copying base db to live..")
+    shutil.copyfile(base_db_path, live_db_path)
+    query_session_phone = capture.sessions["query_phone"] #this contains multiple sessions
+
+    run_capture_to_empty_colmap.run(capture, ["query_phone"], Path(live_model_path), ext=".txt")
     live_reconstruction = pycolmap.Reconstruction(live_model_path)
-    #
+
     live_cameras_files_path = os.path.join(param_path, "live/camera_files_extra")
     remove_folder_safe(live_cameras_files_path)
     live_raw_data_path = "query_phone/raw_data"
@@ -275,7 +275,7 @@ if(create_all_data):
     print("Applying exp. decay / getting descs avg / and main.py (benchmarking) / saving results")
 
     # For Lamar you need to copy the models to the correct folder
-    print("Copying folders first.. (Need to add code)")
+    print("Copying model folders first back to default folders..")
     # Move the required files FROM base/triangulated, live/registered_model etc, (*.bin) TO the base/model, live/model, gt/model folders
     remove_folder_safe(base_model_path)
     remove_folder_safe(live_model_path)
