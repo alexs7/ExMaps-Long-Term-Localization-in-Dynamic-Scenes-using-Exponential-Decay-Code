@@ -30,7 +30,7 @@ from scantools import run_capture_to_empty_colmap
 from scantools.capture import Capture
 from tqdm import tqdm
 import colmap
-from analyse_results_helper import average_csv_results_files
+from analyse_results_helper import average_csv_results_files, check_for_degenerate_cases, write_method_results_to_csv
 from helper import create_query_image_names_txt_lamar, remove_folder_safe, gen_query_txt_lamar, arrange_images_txt_file_lamar, remove_csv_files_from_directory
 from parameters import Parameters
 from point3D_loader import read_points3d_default
@@ -142,6 +142,17 @@ capture_path = sys.argv[2] #"/media/iNicosiaData/engd_data/lamar/HGE"
 parameters = Parameters(param_path)
 create_all_data = sys.argv[3] == "1" #set to "0" if you just want to generate the results
 do_matching = sys.argv[4] #this is for main.py. Set to 0 if you are already have the matches from previous runs
+RUNS = int(sys.argv[5]) #number of runs to average the results
+do_main = sys.argv[6] == "1"
+do_analysis = sys.argv[7] == "1"
+
+# for LAMAR dataset
+thresholds_q = np.linspace(1, 5, 10)
+thresholds_t = np.linspace(0.1, 0.5, 10)
+
+np.set_printoptions(precision=3)
+print("Thresholds for Rotation (degrees): " + str(thresholds_q))
+print("Thresholds for Translation (meters): " + str(thresholds_t))
 
 if(create_all_data):
     remove_folder_safe(param_path)
@@ -290,35 +301,40 @@ if(create_all_data):
     command = ["python3.8", "get_points_3D_mean_descs.py", param_path]
     subprocess.check_call(command)
 
-print("Running evaluators and analysing results..")
+parameters = Parameters(param_path)
+if(do_main):
+    print("Running evaluators and analysing results..")
+    # At this point I will run the main.py to generate results and save them N times for each method (N * no of methods)
+    # clean previous evaluation_results .csv files
+    remove_csv_files_from_directory(param_path)
+    remove_folder_safe(parameters.results_path)
 
-# At this point I will run the main.py to generate results and save them ("analyse_results_models") to the results folder N times
-# Then I will average the results from the N different .csv files
-result_file_output_path = os.path.join(parameters.results_path, "evaluation_results_2022.csv")
+    for i in range(RUNS):
+        print(f"Run no: {i} ...")
+        # 1 is for doing matching (for lamar be careful not to do it twice - just load from disk)
+        # 3000, RANSAC and PROSAC iterations
 
-# clean previous evaluation_results .csv files
-remove_csv_files_from_directory(param_path)
+        if(i > 0): #Do the matching only at the first iteration no need to do it again
+            do_matching = "0"
 
-RUNS=3
-for i in range(RUNS):
-    print(f"Run no: {i} ...")
-    # 1 is for doing matching (for lamar be careful not to do it twice - just load from disk)
-    # 10000, RANSAC and PROSAC iterations
+        command = ["python3.8", "main.py", param_path, do_matching, "3000", str(i)]
+        subprocess.check_call(command)
 
-    if(i > 0): #Do the matching only at the first iteration no need to do it again
-        do_matching = "0"
+# Gather degenerate poses from all methods. Each method might have different degenerate poses.
+# I accumulated all here and ignore them in the analysis - This is because degen cases happen at random times - out of my control.
+print("Checking for degenerate cases..")
+degenerate_poses_all = check_for_degenerate_cases(RUNS, parameters.results_path)
 
-    command = ["python3.8", "main.py", param_path, do_matching, "10000"]
-    subprocess.check_call(command)
+# Read from each run the methods .npy and save them into one .csv file (no averaging at this point)
+if(do_analysis):
+    print("Analysing results..")
+    for i in range(RUNS):
+        print(f"Reading results from run no: {i} ...")
+        write_method_results_to_csv(param_path, i, thresholds_q, thresholds_t, degenerate_poses_all)
 
-    command = ["python3.8", "analyse_results_models_lamar.py", param_path]
-    subprocess.check_call(command)
-
-    # the result_file is generated from analyse_results_models_lamar.py
-    shutil.copyfile(result_file_output_path, os.path.join(param_path, f"evaluation_results_2022_run_{i}.csv"))
-
-# Now I will average the results from the N (RUNS) different .csv files
+# Now I will average the results from the N different .csv files
 print("Averaging results..")
-average_csv_results_files(param_path, parameters)
+average_csv_results_files(parameters, RUNS)
+print()
 
 print("Done!")

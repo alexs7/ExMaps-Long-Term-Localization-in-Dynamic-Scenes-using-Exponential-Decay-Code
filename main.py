@@ -5,7 +5,6 @@ from RANSACParameters import RANSACParameters
 from benchmark import benchmark
 from database import COLMAPDatabase
 from feature_matching_generator import feature_matcher_wrapper
-from helper import remove_folder_safe
 from parameters import Parameters
 from point3D_loader import read_points3d_default, get_points3D_xyz_id
 import numpy as np
@@ -18,10 +17,10 @@ import cv2
 # 08/12/2022 - base path should contain base, live, gt model
 base_path = sys.argv[1] # example: "/home/alex/fullpipeline/colmap_data/CMU_data/slice2/" #trailing "/" or add "exmaps_data"
 do_feature_matching = sys.argv[2] == "1" # 1 or 0 do / do not matching
-no_iterations = int(sys.argv[3]) # 3000 for CMU and Retail datasets, 10000 for LaMAR dataset
+no_iterations = int(sys.argv[3]) # 3000 for all
+run = int(sys.argv[4]) # 0,1,2,3,4,5,6,7,8,9 whatever you want
 
 parameters = Parameters(base_path)
-remove_folder_safe(parameters.results_path)
 
 print("Doing path: " + base_path)
 
@@ -81,10 +80,18 @@ points3D_live_model_scores = [points3D_per_image_scores, points3D_per_session_sc
 #query descs against base model descs
 if(do_feature_matching):
     print("Feature matching...")
-    matches_base = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_base, points3D_xyz_id_base, parameters.ratio_test_val, base_points_3D_ids)
+    #passing all_query_images - but only use gt images
+    matches_base, points3D_seen_per_image_base = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_base,
+                                                                         points3D_xyz_id_base, parameters.ratio_test_val, base_points_3D_ids,
+                                                                         all_query_images, points3D_base)
     np.save(parameters.matches_base_save_path, matches_base)
-    matches_live = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_live, points3D_xyz_id_live, parameters.ratio_test_val, live_points_3D_ids, points_scores_array = points3D_live_model_scores)
+    np.save(parameters.points3D_seen_per_image_base, points3D_seen_per_image_base)
+    # passing all_query_images - but only use gt images
+    matches_live, points3D_seen_per_image_live = feature_matcher_wrapper(db_gt, query_images_names, train_descriptors_live,
+                                                                         points3D_xyz_id_live, parameters.ratio_test_val, live_points_3D_ids,
+                                                                         all_query_images, points3D_live, points_scores_array = points3D_live_model_scores)
     np.save(parameters.matches_live_save_path, matches_live)
+    np.save(parameters.points3D_seen_per_image_live, points3D_seen_per_image_live)
 else:
     print("Skipping feature matching...")
     matches_base = np.load(parameters.matches_base_save_path, allow_pickle=True).item()
@@ -95,33 +102,33 @@ print(f"Running benchmark with number of iterations: {no_iterations}")
 
 print(f"Base Model: {RANSACParameters.ransac_base}")
 est_poses_results = benchmark(ransac, matches_base, localised_query_images_names, Ks, no_iterations)
-np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_base}.npy"), est_poses_results)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_base}_{run}.npy"), est_poses_results)
 
 print(f"Base Model: {RANSACParameters.prosac_base}")
 est_poses_results = benchmark(prosac, matches_base, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.lowes_distance_inverse_ratio_index)
-np.save(os.path.join(parameters.results_path, f"{RANSACParameters.prosac_base}.npy"), est_poses_results)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.prosac_base}_{run}.npy"), est_poses_results)
 
 # -----
 
 print(f"Live Model: {RANSACParameters.ransac_live}")
 est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations)
-np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_live}.npy"), est_poses_results)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_live}_{run}.npy"), est_poses_results)
 
 print(f"Live Model: {RANSACParameters.ransac_dist_per_image_score}")
 est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_per_image_score)
-np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_per_image_score}.npy"), est_poses_results)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_per_image_score}_{run}.npy"), est_poses_results)
 
 print(f"Live Model: {RANSACParameters.ransac_dist_per_session_score}")
-est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_pre_session_score)
-np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_per_session_score}.npy"), est_poses_results)
+est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_per_session_score)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_per_session_score}_{run}.npy"), est_poses_results)
 
 print(f"Live Model: {RANSACParameters.ransac_dist_visibility_score}")
 est_poses_results = benchmark(ransac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx = RANSACParameters.use_ransac_dist_visibility_score)
-np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_visibility_score}.npy"), est_poses_results)
+np.save(os.path.join(parameters.results_path, f"{RANSACParameters.ransac_dist_visibility_score}_{run}.npy"), est_poses_results)
 
 for prosac_val_index, prosac_val_name in RANSACParameters.prosac_value_titles.items():
     print(f"Live Model (PROSAC): {prosac_val_name}")
     est_poses_results = benchmark(prosac, matches_live, localised_query_images_names, Ks, no_iterations, val_idx=prosac_val_index)
-    np.save(os.path.join(parameters.results_path, f"{prosac_val_name}.npy"), est_poses_results)
+    np.save(os.path.join(parameters.results_path, f"{prosac_val_name}_{run}.npy"), est_poses_results)
 
 print("Done !")

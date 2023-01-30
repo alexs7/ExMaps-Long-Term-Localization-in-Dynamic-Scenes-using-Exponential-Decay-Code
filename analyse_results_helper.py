@@ -1,59 +1,71 @@
 # NOTE: This file will be responsible for analysing the results of the dataset - mostly deals with formatting
 # loading data. The error calculations are not happening here
+import csv
 import glob
 import os
 import numpy as np
 import pandas as pd
-from pose_evaluator import pose_evaluate_generic_comparison_model
+from database import COLMAPDatabase
+from parameters import Parameters
+from pose_evaluator import pose_evaluate_generic_comparison_model, pose_evaluate_generic_comparison_model_Maa
+from query_image import read_images_binary, load_images_from_text_file, get_localised_image_by_names, get_query_images_pose_from_images
+
+def get_cmu_path(dest, slice):
+    return os.path.join(dest, slice, "exmaps_data")
+
+def average_all_aggregated_csv_files(dest):
+    # always aggerate all here
+    slices_names = ["slice2", "slice3", "slice4", "slice5", "slice6", "slice7", "slice8", "slice9", "slice10", "slice11", "slice12", "slice13", "slice14", "slice15",
+                    "slice16", "slice17", "slice18", "slice19", "slice20", "slice21", "slice22", "slice23", "slice24", "slice25"]
+    all_df = pd.DataFrame()
+    for slice in slices_names:
+        new_df = pd.DataFrame([slice])
+        all_df = pd.concat([all_df, new_df], axis=0)
+        param_path = get_cmu_path(dest, slice) #slice base path
+        parameters = Parameters(param_path)
+        slice_df = pd.read_csv(parameters.aggregated_results_csv)
+        all_df = pd.concat([all_df, slice_df], axis=0)
+
+    all_df.to_csv(os.path.join(dest, "evaluation_results_2022_all.csv"), index=True, header=True, sep=',')
+
+def get_all_slices_csv_files(dest):
+    # always aggerate all here
+    slices_names = ["slice2", "slice3", "slice4", "slice5", "slice6", "slice7", "slice8", "slice9", "slice10", "slice11", "slice12", "slice13", "slice14", "slice15",
+                    "slice16", "slice17", "slice18", "slice19", "slice20", "slice21", "slice22", "slice23", "slice24", "slice25"]
+    all_dfs = {}
+    for slice in slices_names:
+        param_path = get_cmu_path(dest, slice) #slice base path
+        parameters = Parameters(param_path)
+        slice_df = pd.read_csv(parameters.aggregated_results_csv)
+        all_dfs[slice] = slice_df
+    return all_dfs
 
 def load_est_poses_results(path):
     # [pose, inliers_no, outliers_no, iterations, elapsed_time]
     return np.load(path, allow_pickle=True).item()
 
-def clean_degenerate_poses(est_poses, gt_poses):
-    est_poses_cp = {}
-    gt_poses_cp = {}
-    poses = zip(est_poses, gt_poses)
-    degenerate_poses_count = 0
-    for est_name, gt_name in poses:
-        assert est_name == gt_name
-        if est_poses[est_name][0] is None: #degenerate pose
-            degenerate_poses_count += 1
+def get_degenerate_poses(est_poses):
+    degenerate_poses = []
+    for name, values in est_poses.items():
+        if est_poses[name][0] is None: #degenerate pose
+            degenerate_poses.append(name)
+    return degenerate_poses
+
+def count_degenerate_poses(est_poses):
+    degenerate_poses_no = 0
+    for _, pose_data in est_poses.items():
+        if pose_data[0] is None: #degenerate pose
+            degenerate_poses_no += 1
             continue
-        est_poses_cp[est_name] = est_poses[est_name]
-        gt_poses_cp[gt_name] = gt_poses[gt_name]
+    return degenerate_poses_no
 
-    return est_poses_cp, gt_poses_cp, degenerate_poses_count
-
-def clean_degenerate_poses_lamar(est_poses, gt_poses):
-    est_poses_cp = {}
-    gt_poses_cp = {}
-    poses = zip(est_poses, gt_poses)
-    degenerate_poses_count = 0
-    for est_name, gt_name in poses:
-        assert est_name == gt_name
-        if est_poses[est_name][0] is None: #degenerate pose
-            degenerate_poses_count += 1
-            continue
-        # pose_evaluate_generic_comparison_model() has to be called after the None check otherwise it will fail
-        # pose_evaluate_generic_comparison_model() doens not handle None values
-        # note the 0 here as we only need the pose not the other data
-        error_t, _ = pose_evaluate_generic_comparison_model(est_poses[est_name][0], gt_poses[gt_name])
-        # Due to RANSAC and PROSAC randomness some translations are very large.
-        # If you ran the same method multiple times you would get different results
-        # Instead of running multiple times until I get a "reasonable" I just ignore the results that are too large
-        if (error_t > 99):
-            degenerate_poses_count += 1
-            continue  # This is because RANSAC/PROSAC from before were not able to estimate a pose
-        est_poses_cp[est_name] = est_poses[est_name]
-        gt_poses_cp[gt_name] = gt_poses[gt_name]
-
-    return est_poses_cp, gt_poses_cp, degenerate_poses_count
-
+def remove_degenerate_poses(est_poses, degenerate_poses):
+    for name in degenerate_poses:
+        if name in est_poses.keys():
+            del est_poses[name] #no need to return as dicts are pass by reference
 
 # using errors from Benchmarking 6DOF paper (https://www.visuallocalization.net)
 def get_6dof_accuracy_for_all_images(est_poses, gt_poses, scale = 1):
-    assert len(est_poses) == len(gt_poses)
     image_errors_6dof = {}
     for image_name, est_values in est_poses.items():
         q_pose = est_values[0] #pose at [0]
@@ -93,53 +105,82 @@ def get_row_data(result_file, mAA, est_poses_results, image_errors_6dof, degener
     total_inliers_percentage = 100 * total_inliers / total_matches
     total_outliers_percentage = 100 * total_outliers / total_matches
 
-    name = os.path.splitext(os.path.basename(result_file))[0]
+    name = os.path.splitext(os.path.basename(result_file))[0][0:-2]
     data_row = [name, total_matches, total_inliers_percentage,
                 total_outliers_percentage, iteration_mean, time_mean,
                 t_error_mean, r_error_mean, mAA[0], degenerate_poses_no]
 
     return data_row
 
+def check_for_degenerate_cases(RUNS, results_path):
+    degenerate_poses_all = []
+    for i in range(RUNS):
+        for result_file in glob.glob(os.path.join(results_path, f"*_{i}.npy")):  # each method run (some might have degen some not)
+            est_poses_results_all = load_est_poses_results(result_file)
+            degenerate_poses_all.extend(get_degenerate_poses(est_poses_results_all))
+
+    for degen in np.unique(degenerate_poses_all):
+        print(f"Degenerate case: {degen}")
+
+    return np.unique(degenerate_poses_all)
+
+
 # This method will read all .csv results files and create a dataframe with the mean results
 #  and save to a csv file
-def average_csv_results_files(base_path, parameters):
-    methods = 0
-    values = 0
-    runs = 0
-    for csv_file in glob.glob(os.path.join(base_path, "*.csv")):
-        if("evaluation_results_2022" in csv_file):
-            runs += 1
-            with open(csv_file, "r") as f:
-                lines = f.readlines()
-                if(len(lines) == 0):
-                    continue
-                methods = len(lines) - 1 #minus header
-                values = len(lines[0].split(",")) - 1 #minus method name
+def average_csv_results_files(parameters, runs):
+    first_run = 0
+    sample_df = pd.read_csv(os.path.join(parameters.results_path, f"evaluation_results_all_run_{first_run}.csv"))
+    methods = sample_df['Method Name']
+    values = sample_df.columns[2:]
 
-    all_values = np.empty((methods, values, runs))
+    all_values = np.empty((len(methods), len(values), runs))
     # reset
-    runs = -1
-    for csv_file in glob.glob(os.path.join(base_path, "*.csv")):
-        if("evaluation_results_2022" in csv_file):
-            runs += 1
-            with open(csv_file, "r") as f:
-                lines = f.readlines()
-                if (len(lines) == 0):
-                    continue
-                for mthd_idx in range(methods):
-                    for val_idx in range(values):
-                        # mthd_idx + 1, to skip the header
-                        # val_idx + 1, to skip the method name
-                        all_values[mthd_idx, val_idx, runs] = float(lines[mthd_idx + 1].split(",")[val_idx + 1])
+    for run in range(runs):
+        pf = pd.read_csv(os.path.join(parameters.results_path, f"evaluation_results_all_run_{run}.csv"))
+        all_values[:, :, run] = pf.values[:, 2:]
 
     # Now I have all the values in all_values, matrix, get the mean and
     # add the headers again, methods names and save the file
-    all_values_mean = all_values.mean(axis=2)
-    for csv_file in glob.glob(os.path.join(base_path, "*.csv")):
-        if ("evaluation_results_2022" in csv_file):
-            titles = lines[0].strip().split(",")[1:]
-            method_names = [method_name.split(",")[0] for method_name in lines[1:]]
-            break
+    all_values_mean = np.nanmean(all_values, axis=2)
 
-    df = pd.DataFrame(all_values_mean, index=method_names, columns=titles).sort_values(by=['MAA'], ascending=False)
+    df = pd.DataFrame(all_values_mean, index=methods, columns=values).sort_values(by=['MAA'], ascending=False)
     df.to_csv(parameters.aggregated_results_csv, index=True, header=True, sep=',')
+
+def write_method_results_to_csv(base_path, run, thresholds_q, thresholds_t, degenerate_poses, scale=1):
+    print("Base path: " + base_path)
+    parameters = Parameters(base_path)
+    result_file_output_path = os.path.join(parameters.results_path, f"evaluation_results_all_run_{run}.csv")
+
+    # the "gt" here means ground truth (also used as query) TODO: can move them outside from this method
+    query_images_bin_path = os.path.join(parameters.gt_model_images_path)
+    query_images_path = os.path.join(parameters.query_images_path)
+
+    query_images = read_images_binary(query_images_bin_path)
+    query_images_names = load_images_from_text_file(query_images_path)
+    localised_query_images_names = get_localised_image_by_names(query_images_names, query_images)
+    query_images_ground_truth_poses_all = get_query_images_pose_from_images(localised_query_images_names, query_images)
+
+    header = ['Method Name', 'Total Matches', 'Inliers (%)', 'Outliers (%)', 'Iterations', 'Total Time (s)', 'Trans Error (m)', 'Rotation Error (d)', 'MAA', 'Degenerate Poses']
+    res_df = pd.DataFrame()
+    for result_file in glob.glob(os.path.join(parameters.results_path, f"*_{run}.npy")): #all methods from 1 run
+        est_poses_results_all = load_est_poses_results(result_file) #query poses estimations
+
+        # below I count the degenerate poses for the CURRENT method only
+        # called here before I remove the degenerate poses
+        degenerate_poses_count = count_degenerate_poses(est_poses_results_all)
+
+        remove_degenerate_poses(est_poses_results_all, degenerate_poses)
+        assert len(est_poses_results_all) <= len(query_images_ground_truth_poses_all)
+
+        # mAA = [np.mean(acc), np.array(acc), np.array(acc_q), np.array(acc_t)]
+        mAA = pose_evaluate_generic_comparison_model_Maa(est_poses_results_all, query_images_ground_truth_poses_all, thresholds_q, thresholds_t, scale)
+        # image_errors_6dof = an array of N by [error_t, error_r]
+        image_errors_6dof = get_6dof_accuracy_for_all_images(est_poses_results_all, query_images_ground_truth_poses_all, scale)
+
+        csv_row_data = get_row_data(result_file, mAA, est_poses_results_all, image_errors_6dof, degenerate_poses_count)
+        temp_df = pd.DataFrame([csv_row_data])
+        res_df = pd.concat([res_df, temp_df], axis=0, ignore_index=True)
+
+    res_df.columns = header
+    res_df = res_df.sort_values(by=['Method Name'])
+    res_df.to_csv(result_file_output_path, index=True, header=True, sep=',')

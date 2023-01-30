@@ -28,7 +28,6 @@ def pose_evaluate_generic_comparison_model(query_pose, ground_truth_pose, scale 
 # (09/09/2022) from: https://www.kaggle.com/code/eduardtrulls/imc2022-training-data?scriptVersionId=92062607
 def pose_evaluate_generic_comparison_model_Maa(est_poses, gt_poses, thresholds_q, thresholds_t, scale = 1):
     # I use two different sets of thresholds over rotation and translation. Change this according to your needs
-    assert len(est_poses) == len(gt_poses)
     image_pose_errors = {}
     for image_name, est_values in est_poses.items():
         est_pose = est_values[0] #same as "est_poses[image_name]"

@@ -136,8 +136,9 @@ def run_comparison(func, matches, test_images, all_intrinsics, no_iterations, va
         image = test_images[i]
         matches_for_image = matches[image]
 
-        if (len(matches_for_image) < 10): #Not enough matches to get a reliable pose - mark as degenarate pose
+        if (len(matches_for_image) < 4): #Not enough matches to get a reliable pose - mark as degenarate pose
             # est_pose, inliers_no, outliers_no, iterations, elapsed_time
+            print(f"Not enough matches for image: {image}, skipping - degenerate")
             images_data[image] = [None, None, None, None, None]
             continue
 
@@ -150,7 +151,7 @@ def run_comparison(func, matches, test_images, all_intrinsics, no_iterations, va
                 sub_dist = get_sub_distribution(matches_for_image, 7)
                 matches_for_image = np.hstack((matches_for_image, sub_dist))
 
-            if (val_idx == RANSACParameters.use_ransac_dist_pre_session_score):
+            if (val_idx == RANSACParameters.use_ransac_dist_per_session_score):
                 sub_dist = get_sub_distribution(matches_for_image, 9)
                 matches_for_image = np.hstack((matches_for_image, sub_dist))
 
@@ -163,6 +164,7 @@ def run_comparison(func, matches, test_images, all_intrinsics, no_iterations, va
         best_model = func(matches_for_image, intrinsics, no_iterations) #this will return none if pose is not estimated
 
         if(best_model == None): #degenerate case
+            print(f"Did not get a pose for image: {image}, skipping - degenerate")
             images_data[image] = [None, None, None, None, None]
             continue
 

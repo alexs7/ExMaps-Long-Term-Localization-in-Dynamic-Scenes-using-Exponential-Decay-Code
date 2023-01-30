@@ -24,8 +24,10 @@ run the code again you can set it to 0. This will save you time.
 
 Results are generated in the `results` folder of each dataset. The results are saved in a `.csv` file.
 At each run the result `.csv` file from the `results` folder is copied to the parent folder, which is the
-dataset folder. This is done to keep track of the results. 
-Then a file called `evaluation_results_2022_aggregated.csv` is generated. This is the file to read from.
+dataset folder. This is done to keep track of the results.
+Then a file called `evaluation_results_2022_aggregated.csv` is generated from the 3 (or N) runs. 
+This is the file to read from. At this point you can parse the results and generate the graphs.
+Do not run `analyse_results_models_*.py` or `main.py` or `get_lamar/cmu/coop_data.py` again.
 
 ## Below are the old instructions (pre 2023)
 
@@ -41,7 +43,7 @@ The directory `/home/user/fullpipeline/colmap_data/CMU_data/slice3/` will be dif
 
 `get_visibility_matrix.py` applies the exponential decay.
 
-One you run this code for all the CMU slices (or retail shop) then you will want to run `results_analyzer.py`. 
+Once you run this code for all the CMU slices (or retail shop) then you will want to run `results_analyzer.py`. 
 
 #### Preparation of data
 

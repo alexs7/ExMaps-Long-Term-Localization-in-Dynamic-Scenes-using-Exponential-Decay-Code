@@ -4,9 +4,11 @@ import numpy as np
 from tqdm import tqdm
 from query_image import get_image_id, get_keypoints_xy, get_queryDescriptors
 
-def feature_matcher_wrapper(db, query_images, trainDescriptors_and_points3D_ids, points3D_xyz_ids, ratio_test_val, points_3D_ids, points_scores_array=None):
+def feature_matcher_wrapper(db, query_images, trainDescriptors_and_points3D_ids, points3D_xyz_ids, ratio_test_val, points_3D_ids, gt_images_only_to_use, points3D_bin, points_scores_array=None):
     # create image_name <-> matches, dict - easier to work with
     matches = {}
+    # This dict will hold , image_name -> [number of 3D points its keypoints match to]
+    keypoints_points3D = {}
     trainDescriptors = trainDescriptors_and_points3D_ids[:,0:128]
     points_3D_ids_from_train = trainDescriptors_and_points3D_ids[:,128]
 
@@ -27,9 +29,12 @@ def feature_matcher_wrapper(db, query_images, trainDescriptors_and_points3D_ids,
         # Matching on trainDescriptors (remember these are the means of the 3D points)
         temp_matches = matcher.knnMatch(queryDescriptors, trainDescriptors, k=2)
 
+        assert len(temp_matches) == keypoints_xy.shape[0] == queryDescriptors.shape[0] #another fucking sanity check
+
         # output: idx1, idx2, lowes_distance (vectors of corresponding indexes in
         # m the closest, n is the second closest
         good_matches = []
+        point_3D_seen_counter = 0
         for m, n in temp_matches: # TODO: maybe consider what you have at this point? and add it to the if condition ?
             assert(m.distance <=  n.distance)
             # trainIdx is from 0 to no of points 3D (since each point 3D has a desc), so you can use it as an index here
@@ -43,7 +48,7 @@ def feature_matcher_wrapper(db, query_images, trainDescriptors_and_points3D_ids,
                 scores = []
                 xy2D = keypoints_xy[m.queryIdx, :].tolist()
                 xyz3D = points3D_xyz_ids[m.trainIdx, 0:3].tolist() #x,y,z, id
-                point_id = points3D_xyz_ids[m.trainIdx, 3]
+                point_id = points3D_xyz_ids[m.trainIdx, 3] #3D point id
 
                 # sanity check no.2
                 assert points_3D_ids_from_train[m.trainIdx] == points_3D_ids[0, m.trainIdx] == point_id
@@ -53,11 +58,15 @@ def feature_matcher_wrapper(db, query_images, trainDescriptors_and_points3D_ids,
                         scores.append(points_scores[0, m.trainIdx]) # m , closest first neighbour's score
                         scores.append(points_scores[0, n.trainIdx]) # n , closest second neighbour's score
 
+                if( point_id in gt_images_only_to_use[int(image_id)].point3D_ids):
+                    point_3D_seen_counter += 1
+
                 match_data = [xy2D, xyz3D, [m.distance, n.distance], scores]
 
                 match_data = list(chain(*match_data))
                 good_matches.append(match_data)
 
+        keypoints_points3D[query_image] = point_3D_seen_counter
         matches[query_image] = np.array(good_matches)
 
-    return matches
+    return matches, keypoints_points3D

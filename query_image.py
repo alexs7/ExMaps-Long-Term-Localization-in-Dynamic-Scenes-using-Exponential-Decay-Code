@@ -285,6 +285,14 @@ def get_localised_image_by_names(query_names, localised_images):
             result_imgs.append(name)
     return result_imgs
 
+# This will take a list of images, check which ones are localised and returns the localised images (no tqdm)
+def get_localised_image_by_names_no_tqdm(query_names, localised_images):
+    result_imgs = []
+    for name in query_names:
+        if(image_localised(name, localised_images) != None):
+            result_imgs.append(name)
+    return result_imgs
+
 def get_image_by_name(name, images):
     image = None
     for k, v in images.items():

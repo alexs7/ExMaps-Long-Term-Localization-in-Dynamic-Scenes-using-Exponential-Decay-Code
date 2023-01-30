@@ -4,7 +4,9 @@ class Parameters(object):
 
     def __init__(self, base_path):
         self.results_path = os.path.join(base_path,"results")
-        self.aggregated_results_csv = os.path.join(base_path,"evaluation_results_2022_aggregated.csv")
+        self.degenerate_poses_path = os.path.join(self.results_path, "degenerate_poses.npy")
+        self.aggregated_results_csv = os.path.join(self.results_path,"evaluation_results_2022_aggregated.csv")
+        self.cmu_only_all_slices_aggregated_results_csv = os.path.join(self.results_path,"evaluation_results_2022_aggregated_all_slices.csv")
         self.avg_descs_base_path = os.path.join(base_path,"avg_descs_base.npy")
         self.avg_descs_live_path = os.path.join(base_path,"avg_descs_live.npy")
 
@@ -17,6 +19,9 @@ class Parameters(object):
 
         self.matches_base_save_path = os.path.join(base_path,"matches_base.npy")
         self.matches_live_save_path = os.path.join(base_path,"matches_live.npy")
+
+        self.points3D_seen_per_image_base = os.path.join(base_path, "points3D_seen_per_image_base.npy")
+        self.points3D_seen_per_image_live = os.path.join(base_path, "points3D_seen_per_image_live.npy")
 
         # 29/06/2020 - My addition
         # 08/12/2022 - changed from "base/model/0/points3D.bin" to "base/model/points3D.bin"

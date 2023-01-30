@@ -11,10 +11,12 @@ import tarfile
 from os.path import abspath
 from pathlib import Path
 import cv2
+import numpy as np
 import pycolmap
 from tqdm import tqdm
 import colmap
-from analyse_results_helper import average_csv_results_files
+from analyse_results_helper import average_csv_results_files, load_est_poses_results, get_degenerate_poses, write_method_results_to_csv, average_all_aggregated_csv_files, \
+    get_cmu_path, check_for_degenerate_cases
 from helper import remove_file_safe, remove_folder_safe, empty_points_3D_txt_file, arrange_images_txt_file, arrange_cameras_txt_file, arrange_sessions, \
     create_query_image_names_txt, gen_query_txt, remove_csv_files_from_directory
 from parameters import Parameters
@@ -23,6 +25,17 @@ from undistort_img import undistort_cmu
 dest = abspath(sys.argv[1]) #/media/iNicosiaData/engd_data/cmu
 create_all_data = sys.argv[2] == "1" #set to "0" if you just want to generate the results
 do_matching = sys.argv[3] #this is for main.py. Set to 0 if you are already have the matches from previous runs
+RUNS = int(sys.argv[4]) #number of runs to average the results
+do_main = sys.argv[5] == "1"
+do_analysis = sys.argv[6] == "1"
+
+#for CMU
+thresholds_q = np.linspace(1, 10, 10)
+thresholds_t = np.geomspace(0.2, 5, 10)  # np.geomspace(0.2, 5, 10), same as np.logspace(np.log10(0.2), np.log10(5), num=10, base=10.0)
+
+np.set_printoptions(precision=3)
+print("Thresholds for Rotation (degrees): " + str(thresholds_q))
+print("Thresholds for Translation (meters): " + str(thresholds_t))
 
 # 16/01/2023 - all combinations (after all temp runs), query can't be 1 as it is base so choose a number from 2-12
 combinations = {"slice2": 6, "slice3": 7, "slice4": 4, "slice5": 4, "slice6": 7,
@@ -53,6 +66,9 @@ combinations = {"slice2": 6, "slice3": 7, "slice4": 4, "slice5": 4, "slice6": 7,
 
 # temp 6 = sixth run (after the new updates in get_visibility_matrix.py)
 # combinations = {"slice12": 3}
+
+# temp 7
+# combinations = {"slice16": 4, "slice10": 3}
 
 if(create_all_data):
     print("Iterating through slices")
@@ -193,59 +209,47 @@ if(create_all_data):
         subprocess.check_call(command)
 
 # At this point and on, I generate results
-RUNS = 3 # for benchmarks
+# Note for the CMU we need to run code for each slice (main.py and analyse results)
 for slice in combinations.keys(): #for each slice run RUNS times
-    param_path = f"/media/iNicosiaData/engd_data/cmu/{slice}/exmaps_data"
+    param_path = get_cmu_path(dest, slice) #get the "base_path" for each slice
+
     parameters = Parameters(param_path)
+    if (do_main):
+        print("Running evaluators and analysing results..")
+        # At this point I will run the main.py to generate results and save them N times for each method (N * no of methods)
+        # clean previous evaluation_results .csv files
+        remove_csv_files_from_directory(param_path)
+        remove_folder_safe(parameters.results_path)
 
-    print("Running evaluators and analysing results..")
-    # At this point I will run the main.py to generate results and save them ("analyse_results_models") to the results folder N times
-    # Then I will average the results from the N different .csv files
-    result_file_output_path = os.path.join(parameters.results_path, "evaluation_results_2022.csv")
+        for i in range(RUNS):
+            print(f"Run no: {i} ...")
+            # 1 is for doing matching (for lamar be careful not to do it twice - just load from disk)
+            # 3000, RANSAC and PROSAC iterations
 
-    # clean previous evaluation_results .csv files
-    remove_csv_files_from_directory(param_path)
+            if (i > 0):  # Do the matching only at the first iteration no need to do it again
+                do_matching = "0"
 
-    for i in range(RUNS):
-        print(f"Run no: {i} ...")
-        # 1 is for doing matching (for lamar be careful not to do it twice - just load from disk)
-        # 3000, RANSAC and PROSAC iterations
+            command = ["python3.8", "main.py", param_path, do_matching, "3000", str(i)]
+            subprocess.check_call(command)
 
-        if (i > 0):  # Do the matching only at the first iteration no need to do it again
-            do_matching = "0"
+    # Gather degenerate poses from all methods. Each method might have different degenerate poses.
+    # I accumulated all here and ignore them in the analysis - This is because degen cases happen at random times - out of my control.
+    print("Checking for degenerate cases..")
+    degenerate_poses_all = check_for_degenerate_cases(RUNS, parameters.results_path)
 
-        command = ["python3.8", "main.py", param_path, do_matching, "3000"]
-        subprocess.check_call(command)
+    # Read from each run the methods .npy and save them into one .csv file (no averaging at this point)
+    if (do_analysis):
+        print("Analysing results..")
+        for i in range(RUNS):
+            print(f"Reading results from run no: {i} ...")
+            write_method_results_to_csv(param_path, i, thresholds_q, thresholds_t, degenerate_poses_all)
 
-        command = ["python3.8", "analyse_results_models_cmu.py", param_path]
-        subprocess.check_call(command)
-
-        # the result_file is generated from analyse_results_models_cmu.py
-        shutil.copyfile(result_file_output_path, os.path.join(param_path, f"evaluation_results_2022_run_{i}.csv"))
-
-    # Now I will average the results from the N (RUNS) different .csv files
+    # Now I will average the results from the N different .csv files
     print("Averaging results..")
-    average_csv_results_files(param_path, parameters)
+    average_csv_results_files(parameters, RUNS)
+    print()
 
-# generate one csv for all results
-print("Writing all (evaluation_results_2022_aggregated.csv files) results, from each slice, to a single .csv..")
-header = ['Method Name', 'Total Matches', 'Inliers (%)', 'Outliers (%)', 'Iterations', 'Total Time (s)', 'Trans Error (m)', 'Rotation Error (d)', 'MAA', 'Degenerate Poses']
-result_file_output_path = "/media/iNicosiaData/engd_data/cmu/evaluation_results_2022_all.csv"
-
-with open(result_file_output_path, 'w', encoding='UTF8') as f:
-    writer = csv.writer(f)
-    writer.writerow(header)
-    for slice in combinations.keys():
-        slice_csv_result_path = f"/media/iNicosiaData/engd_data/cmu/{slice}/exmaps_data/evaluation_results_2022_aggregated.csv"
-        with open(slice_csv_result_path, 'r') as slice_result_f:
-            reader = csv.reader(slice_result_f)
-            data = list(reader)
-            data = data[1:]
-            sub_header = [slice, "", "", "", "", "", "", "", "", ""]
-            writer.writerow(sub_header)
-            for row in data:
-                writer.writerow(row)
-            new_line = ["", "", "", "", "", "", "", "", "", ""]
-            writer.writerow(new_line)
+# Now I will average the results from ALL slices
+average_all_aggregated_csv_files(dest)
 
 print("Done!")

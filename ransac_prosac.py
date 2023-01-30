@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 from RANSACParameters import RANSACParameters
 import pycolmap
+from scipy.spatial.transform import Rotation as R
 
 ERROR_THRESHOLD = RANSACParameters.ransac_prosac_error_threshold
 # intrinsics matrix
@@ -46,14 +47,24 @@ def model_fit(img_points, obj_points, flag_val, K):
 def model_evaluate(matches_for_image, Rt, threshold, K):
     # NOTE: can also do this: points2D, _ = cv2.projectPoints(obj_point[:,0:3].transpose(), rvec, tvec, K, np.zeros((5, 1)))
     obj_point = matches_for_image[:, 2:5]
-    img_point_gt = matches_for_image[:, 0:2] #this is wrong
-    obj_point = np.hstack((obj_point, np.ones((obj_point.shape[0],1)))) # make homogeneous
-    img_point_est = K.dot(Rt.dot(obj_point.transpose())[0:3])
-    img_point_est = img_point_est / img_point_est[2]  # divide by last coordinate
-    img_point_est = img_point_est.transpose()
-    dist = np.linalg.norm(img_point_gt[:,0:2] - img_point_est[:,0:2], axis=-1)
+    img_point_gt = matches_for_image[:, 0:2]
+    # obj_point = np.hstack((obj_point, np.ones((obj_point.shape[0],1)))) # make homogeneous
+    # img_point_est = K.dot(Rt.dot(obj_point.transpose())[0:3])
+    # img_point_est = img_point_est / img_point_est[2]  # divide by last coordinate
+    # img_point_est = img_point_est.transpose()
+    # dist = np.linalg.norm(img_point_gt[:,0:2] - img_point_est[:,0:2], axis=-1)
+    # indices = [dist < threshold][0].nonzero()[0]
+    # inliers = matches_for_image[indices, :]
+
+    # 06/02/2023 - New code
+    rvec = Rt[0:3, 0:3]
+    tvec = Rt[0:3, 3]
+    img_point_est, _ = cv2.projectPoints(obj_point[:, 0:3].transpose(), rvec, tvec, K, np.zeros((5, 1)))
+    img_point_est = img_point_est.reshape(img_point_est.shape[0], img_point_est.shape[2])
+    dist = np.linalg.norm(img_point_gt[:, 0:2] - img_point_est[:, 0:2], axis=-1)
     indices = [dist < threshold][0].nonzero()[0]
     inliers = matches_for_image[indices, :]
+
     return inliers, indices
 
 def ransac(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
@@ -70,7 +81,7 @@ def ransac(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
     while k < no_iterations:
         k = k + 1
 
-        # pick 4 random matches (assume they are inliers)
+        # pick 4 random matches (assume they are inliers, hypothetical inliers do not add them later)
         random_matches = np.random.choice(len(matches_for_image), s, replace=False)
 
         # get 3D and 2D points
@@ -83,23 +94,19 @@ def ransac(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
         if(Rt[0:3,0:3].all() == np.eye(3).all()): #reached a degenerate case because the random_matches are not good
             return None
 
-        matches_without_random_matches = np.delete(matches_for_image, random_matches, axis=0)
-        inliers, _ = model_evaluate(matches_without_random_matches, Rt, ERROR_THRESHOLD, intrinsics)
+        inliers, _ = model_evaluate(matches_for_image, Rt, ERROR_THRESHOLD, intrinsics)
 
-        # TODO: remove this "+s" ?
-        inliers_no = len(inliers) + s #total number of inliers
+        inliers_no = len(inliers) #total number of inliers
         outliers_no = len(matches_for_image) - inliers_no
 
         # store best model so far
-        if(inliers_no > max):
+        if(inliers_no > max and inliers_no > 0):
             best_model['Rt'] = Rt
             best_model['inliers_no'] = inliers_no
-            best_model['inliers'] = np.vstack((matches_for_image[(random_matches),:], inliers)) #add the previous random 4 matches too!
             best_model['inliers_for_refit'] = inliers
             best_model['outliers_no'] = outliers_no
             max = inliers_no
             e = (outliers_no + eps) / len(matches_for_image) # +eps to avoid zero, otherwise it breaks the statement below
-
             N = np.log(1 - p) / np.log(1 - np.power((1 - e), s))
             N = int(np.floor(N))
             no_iterations = N
@@ -115,9 +122,10 @@ def ransac(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
     if(not bool(best_model)):
         return None
 
-    # This will only run if the inlers of the best model are over or equal to 4
-    if(best_model['inliers_for_refit'].shape[0] >= 4):
-        best_model['Rt'] = model_fit(best_model['inliers_for_refit'][:,0:2], best_model['inliers_for_refit'][:,2:5], cv2.SOLVEPNP_EPNP, intrinsics)
+    # 06/02/2023 - Not needed and is not correct anyway. Need to append inliers to a consensus set and refit on that
+    # # This will only run if the inlers of the best model are over or equal to 4
+    # if(best_model['inliers_for_refit'].shape[0] >= 4):
+    #     best_model['Rt'] = model_fit(best_model['inliers_for_refit'][:,0:2], best_model['inliers_for_refit'][:,2:5], cv2.SOLVEPNP_EPNP, intrinsics)
 
     # 18/08/2022 save the iterations here
     # this is because a 'best_model' can be found at k = 5 for example.
@@ -153,17 +161,15 @@ def ransac_dist(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
         if (Rt[0:3, 0:3].all() == np.eye(3).all()):  # reached a degenerate case because the random_matches are not good
             return None
 
-        matches_without_random_matches = np.delete(matches_for_image, random_matches, axis=0)
-        inliers, _ = model_evaluate(matches_without_random_matches, Rt, ERROR_THRESHOLD, intrinsics)
+        inliers, _ = model_evaluate(matches_for_image, Rt, ERROR_THRESHOLD, intrinsics)
 
-        inliers_no = len(inliers) + s #total number of inliers
+        inliers_no = len(inliers) #total number of inliers
         outliers_no = len(matches_for_image) - inliers_no
 
         # store best model so far
-        if(inliers_no > max):
+        if(inliers_no > max and inliers_no > 0):
             best_model['Rt'] = Rt
             best_model['inliers_no'] = inliers_no
-            best_model['inliers'] = np.vstack((matches_for_image[(random_matches),:], inliers)) #add the previous random 4 matches too!
             best_model['inliers_for_refit'] = inliers
             best_model['outliers_no'] = outliers_no
             max = inliers_no
@@ -184,9 +190,10 @@ def ransac_dist(matches_for_image, intrinsics, MAX_RANSAC_ITERS):
     if (not bool(best_model)):
         return None
 
-    # This will only run if the inlers of the best model are over or equal to 4
-    if(best_model['inliers_for_refit'].shape[0] >= 4):
-        best_model['Rt'] = model_fit(best_model['inliers_for_refit'][:,0:2], best_model['inliers_for_refit'][:,2:5], cv2.SOLVEPNP_EPNP, intrinsics)
+    # 06/02/2023 - Not needed and is not correct anyway. Need to append inliers to a consensus set and refit on that
+    # # This will only run if the inlers of the best model are over or equal to 4
+    # if(best_model['inliers_for_refit'].shape[0] >= 4):
+    #     best_model['Rt'] = model_fit(best_model['inliers_for_refit'][:,0:2], best_model['inliers_for_refit'][:,2:5], cv2.SOLVEPNP_EPNP, intrinsics)
 
     # 18/08/2022 save the iterations here
     # this is because a 'best_model' can be found at k = 5 for example.
@@ -302,7 +309,6 @@ def prosac(sorted_matches, intrinsics, MAX_RANSAC_ITERS):
 
             best_model['Rt'] = Rt
             best_model['inliers_no'] = I_N
-            best_model['inliers'] = np.vstack((sample, inliers)) #add the previous random 4 matches too!
             best_model['inliers_for_refit'] = inliers
             best_model['outliers_no'] = CORRESPONDENCES - I_N
             # best_model['iterations'] = t #18/08/2022 Moved. See comment below
@@ -344,9 +350,10 @@ def prosac(sorted_matches, intrinsics, MAX_RANSAC_ITERS):
     if (best_model['Rt'][0:3, 0:3].all() == np.eye(3).all()):
         return None
 
-    # This will only run if the inlers of the best model are over or equal to 4
-    if(best_model['inliers_for_refit'].shape[0] >= 4):
-        best_model['Rt'] = model_fit(best_model['inliers_for_refit'][:,0:2], best_model['inliers_for_refit'][:,2:5], cv2.SOLVEPNP_EPNP, intrinsics)
+    # 06/02/2023 - Not needed and is not correct anyway. Need to append inliers to a consensus set and refit on that
+    # # This will only run if the inlers of the best model are over or equal to 4
+    # if(best_model['inliers_for_refit'].shape[0] >= 4):
+    #     best_model['Rt'] = model_fit(best_model['inliers_for_refit'][:,0:2], best_model['inliers_for_refit'][:,2:5], cv2.SOLVEPNP_EPNP, intrinsics)
 
     # 18/08/2022 save the iterations here
     # this is because a 'best_model' can be found at t = 5 for example.
