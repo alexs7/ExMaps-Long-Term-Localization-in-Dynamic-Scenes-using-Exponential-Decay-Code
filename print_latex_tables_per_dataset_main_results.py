@@ -165,7 +165,7 @@ print_end_of_table()
 # Retail
 base_pd, live_pd = get_methods_from_slice(retail_df, RANSACParameters.methods_to_evaluate)
 ransac_base_row, ransac_live_row, top_score_row = get_base_live_top_score_methods(base_pd, live_pd)
-metrics = {"base" : return_data_from_row(ransac_base_row), "live" : return_data_from_row(ransac_live_row), "top_score_method" : return_data_from_row(top_score_row)}
+metrics = {"base" : return_data_from_row(ransac_base_row, convert_to_cm=True), "live" : return_data_from_row(ransac_live_row, convert_to_cm=True), "top_score_method" : return_data_from_row(top_score_row, convert_to_cm=True)}
 print_start_of_metric_table_aggregated_metrics(label="retail_shop_methods_base_live_top", caption="Retail Shop - top methods metrics")
 print_aggregated_table_row(slice_name = None, methods_metrics = metrics)
 print_end_of_table()
