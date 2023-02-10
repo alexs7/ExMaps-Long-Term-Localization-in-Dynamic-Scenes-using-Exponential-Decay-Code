@@ -148,13 +148,16 @@ def get_latex_row_string_top_methods(metric, base, live, top_score_method): #dea
 
     return metric_latex , base_latex , live_latex , top_score_method_latex
 
-def return_data_from_row(row):
+def return_data_from_row(row, convert_to_cm=False):
     total_matches = int(np.round(row["Total Matches"]))
     inliers_perc = np.round(row["Inliers (%)"])
     outliers_perc = np.round(row["Outliers (%)"])
     iterations = int(row["Iterations"])
     total_time = np.round(row["Total Time (s)"] * 1000, decimals=3) # to ms (but keep the (s) to index the dict)
-    translation_error = np.round(row["Trans Error (m)"], decimals=3)
+    if(convert_to_cm):
+        translation_error = np.round(row["Trans Error (m)"]*100, decimals=3) #to cm
+    else:
+        translation_error = np.round(row["Trans Error (m)"], decimals=3) #to m
     rotation_error = np.round(row["Rotation Error (d)"], decimals=3)
     mAA = np.round(row["MAA"] * 100 , decimals=3) # to %
     return f"{(total_matches):.0f}", f"{(inliers_perc):.0f}", f"{(outliers_perc):.0f}", \

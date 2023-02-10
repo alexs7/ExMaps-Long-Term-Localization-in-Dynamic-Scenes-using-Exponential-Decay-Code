@@ -170,6 +170,7 @@ print_start_of_metric_table_aggregated_metrics(label="retail_shop_methods_base_l
 print_aggregated_table_row(slice_name = None, methods_metrics = metrics)
 print_end_of_table()
 
+# Might need to modify the latex code a bit
 # Lamar
 base_pd, live_pd = get_methods_from_slice(lamar_HGE_df, RANSACParameters.methods_to_evaluate)
 # Lamar - HGE

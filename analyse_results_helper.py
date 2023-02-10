@@ -162,7 +162,7 @@ def write_method_results_to_csv(base_path, run, thresholds_q, thresholds_t, dege
 
     header = ['Method Name', 'Total Matches', 'Inliers (%)', 'Outliers (%)', 'Iterations', 'Total Time (s)', 'Trans Error (m)', 'Rotation Error (d)', 'MAA', 'Degenerate Poses']
     res_df = pd.DataFrame()
-    for result_file in glob.glob(os.path.join(parameters.results_path, f"*_{run}.npy")): #all methods from 1 run
+    for result_file in glob.glob(os.path.join(parameters.results_path, f"*_{run}.npy")): #all methods from 1 run (NOT ALL RUNS, no averaging happening here)
         est_poses_results_all = load_est_poses_results(result_file) #query poses estimations
 
         # below I count the degenerate poses for the CURRENT method only
