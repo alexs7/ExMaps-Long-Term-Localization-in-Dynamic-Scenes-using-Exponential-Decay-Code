@@ -78,12 +78,13 @@ def print_aggregated_table_row(slice_name = None, methods_metrics= None):
 
 # This print rows and return the live selected methods - ranked by mAA
 def print_all_rows(base_pd, live_pd, title):
+    convert_to_cm = (title == "Retail Shop")
     print(f"{title}                          &    &     &     &      &      &      &      &     \\\\")
     print("\\textbf{Base Map}                &    &     &     &      &      &      &      &     \\\\")
 
     for _, base_row in base_pd.iterrows():
         method_name = base_row['Method Name']
-        total_matches, inliers_perc, outliers_perc, iterations, total_time, translation_error, rotation_error, mAA = return_data_from_row(base_row)
+        total_matches, inliers_perc, outliers_perc, iterations, total_time, translation_error, rotation_error, mAA = return_data_from_row(base_row, convert_to_cm=convert_to_cm)
         if (method_name == "ransac_base"):
             print(
                 f"{latex_dict_for_methods[method_name]}               & {total_matches} & {inliers_perc} & {outliers_perc} & {iterations} "
@@ -98,7 +99,7 @@ def print_all_rows(base_pd, live_pd, title):
     for _, live_row in live_pd.iterrows():
         idx += 1
         method_name = live_row['Method Name']
-        total_matches, inliers_perc, outliers_perc, iterations, total_time, translation_error, rotation_error, mAA = return_data_from_row(live_row)
+        total_matches, inliers_perc, outliers_perc, iterations, total_time, translation_error, rotation_error, mAA = return_data_from_row(live_row, convert_to_cm=convert_to_cm)
         if(idx == 1):
             mAA_latex = f"\\textbf{{{mAA}}}" #first one is bold
         else:
