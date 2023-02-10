@@ -28,7 +28,7 @@ def print_start_of_metric_table_aggregated_metrics(label, caption):
     print(caption)
     print("}\\vspace{0.5em}")
     print("\\centerline{")
-    print("\\begin{tabular}{l@{\\hspace{5mm}}rr@{\\hspace{5mm}}rr@{\\hspace{4mm}}rr@{\\hspace{4mm}}rr}")
+    print("\\begin{tabular}{r@{\\hspace{5mm}}rr@{\\hspace{5mm}}rl@{\\hspace{4mm}}rl@{\\hspace{4mm}}rr}")
     print("\\toprule")
     print("Slice \\# & \\multicolumn{2}{l}{Map Matches} & \\multicolumn{2}{c}{RANSAC Base} & \\multicolumn{2}{c}{RANSAC Live} & \\multicolumn{2}{c}{Top Scored Method} \\\\")
     print("\\ & Base & Live & In.(\\%) & mAA(\\%) & In.(\\%) & mAA(\\%) & In.(\\%) & mAA(\\%) \\\\ \midrule")
@@ -74,7 +74,9 @@ def print_aggregated_table_row(slice_name = None, methods_metrics= None):
         slice_no = "1"
     else:
         slice_no = slice_name.split("e")[1]
-    print(f"{slice_no} & {base_method[0]} & \\textbf{{{live_method[0]}}} & {base_method[1]} & {base_method[-1]} & {live_method[1]} & {live_mAA_text} & {top_score_method[1]} & {top_score_mAA_text} \\\\")
+    # base_method[0], base no of matches
+    # live_method[0], live no of matches
+    print(f"{slice_no} & {'{:,}'.format(int(base_method[0]))} & \\textbf{{{'{:,}'.format(int(live_method[0]))}}} & {base_method[1]} & {base_method[-1]} & {live_method[1]} & {live_mAA_text} & {top_score_method[1]} & {top_score_mAA_text} \\\\")
 
 # This print rows and return the live selected methods - ranked by mAA
 def print_all_rows(base_pd, live_pd, title):
@@ -87,11 +89,11 @@ def print_all_rows(base_pd, live_pd, title):
         total_matches, inliers_perc, outliers_perc, iterations, total_time, translation_error, rotation_error, mAA = return_data_from_row(base_row, convert_to_cm=convert_to_cm)
         if (method_name == "ransac_base"):
             print(
-                f"{latex_dict_for_methods[method_name]}               & {total_matches} & {inliers_perc} & {outliers_perc} & {iterations} "
+                f"{latex_dict_for_methods[method_name]}               & {'{:,}'.format(int(total_matches))} & {inliers_perc} & {outliers_perc} & {'{:,}'.format(int(iterations))} "
                 f"& {total_time} & {translation_error} & {rotation_error} & {mAA} \\\\")
         if (method_name == "prosac_base"):
             print(
-                f"{latex_dict_for_methods[method_name]}               & {total_matches} & {inliers_perc} & {outliers_perc} & {iterations} "
+                f"{latex_dict_for_methods[method_name]}               & {'{:,}'.format(int(total_matches))} & {inliers_perc} & {outliers_perc} & {'{:,}'.format(int(iterations))} "
                 f"& {total_time} & {translation_error} & {rotation_error} & {mAA} \\\\")
     print("\\midrule")
     print("\\textbf{Live Map}                &    &     &     &      &      &      &      &     \\\\")
@@ -104,7 +106,7 @@ def print_all_rows(base_pd, live_pd, title):
             mAA_latex = f"\\textbf{{{mAA}}}" #first one is bold
         else:
             mAA_latex = f"{mAA}"
-        print(f"{latex_dict_for_methods[method_name]}                & {total_matches} & {inliers_perc} & {outliers_perc} & {iterations} "
+        print(f"{latex_dict_for_methods[method_name]}                & {'{:,}'.format(int(total_matches))} & {inliers_perc} & {outliers_perc} & {'{:,}'.format(int(iterations))} "
               f"& {total_time} & {translation_error} & {rotation_error} & {mAA_latex}  \\\\")
 
 def get_base_live_top_score_methods(base_pd, live_pd):
@@ -116,6 +118,9 @@ def get_base_live_top_score_methods(base_pd, live_pd):
     ransac_live_row = live_pd[live_pd["Method Name"] == method_name].iloc[0]
     # top method that uses a score
     method_name = live_pd["Method Name"][0] #already sorted by mAA
+    # Note that if RUNS are not enought maybe live is the best - so need to pick up the second score-based method
+    # if(method_name == "ransac_live"): #do not pick live again
+    #     method_name = live_pd["Method Name"][1]
     top_score_row = live_pd[live_pd["Method Name"] == method_name].iloc[0]
     return ransac_base_row, ransac_live_row, top_score_row
 
@@ -165,7 +170,7 @@ def return_data_from_row(row, convert_to_cm=False):
         f"{(iterations):.0f}", f"{(total_time):.2f}", f"{(translation_error):.2f}", \
         f"{(rotation_error):.2f}", f"{(mAA):.2f}"
 
-def get_methods_from_slice_cmu(sub_frame, methods_to_evaluate): #already sorts my MAA
+def get_methods_from_slice_cmu(sub_frame, methods_to_evaluate): #already sorts my Method Name
     base_rows = []
     live_rows = []
     for index, row in sub_frame.reset_index().iterrows():
@@ -181,12 +186,12 @@ def get_methods_from_slice_cmu(sub_frame, methods_to_evaluate): #already sorts m
     base_pd = pd.DataFrame.from_records(base_rows)
     live_pd = pd.DataFrame.from_records(live_rows)
 
-    base_pd = base_pd.sort_values("MAA" , ascending=False)
-    live_pd = live_pd.sort_values("MAA" , ascending=False)
+    base_pd = base_pd.sort_values("Method Name" , ascending=False)
+    live_pd = live_pd.sort_values("Method Name" , ascending=False)
 
     return base_pd, live_pd
 
-def get_methods_from_slice(df, methods_to_evaluate): #for retail and HGE,  #already sorts my MAA
+def get_methods_from_slice(df, methods_to_evaluate): #for retail and HGE,  #already sorts my Method Name
     base_rows = []
     live_rows = []
     for index, row in df.iterrows():
@@ -200,7 +205,7 @@ def get_methods_from_slice(df, methods_to_evaluate): #for retail and HGE,  #alre
     base_pd = pd.DataFrame.from_records(base_rows)
     live_pd = pd.DataFrame.from_records(live_rows)
 
-    base_pd = base_pd.sort_values("MAA", ascending=False)
-    live_pd = live_pd.sort_values("MAA", ascending=False)
+    base_pd = base_pd.sort_values("Method Name", ascending=False)
+    live_pd = live_pd.sort_values("Method Name", ascending=False)
 
     return base_pd, live_pd

@@ -57,6 +57,8 @@ def get_matched_base_and_live_3D_points_percentage(base_path):
     parameters = Parameters(base_path)
     db_gt = COLMAPDatabase.connect(parameters.gt_db_path)
 
+    # Note that the gt images where localised in the live map but using COLMAP (my ground truth method).
+    # Then I compare the matches of the gt images to the base and live map, using my own trivial matching method, OpenCV's BF matcher.
     all_query_images = read_images_binary(parameters.gt_model_images_path)  # only localised images (but from base,live,gt - we need only gt)
     all_query_images_names = load_images_from_text_file(parameters.query_images_path)  # only gt images (all)
     localised_query_images_names = get_localised_image_by_names_no_tqdm(all_query_images_names, all_query_images)  # only gt images (localised only)

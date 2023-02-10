@@ -4,14 +4,12 @@
 # the idea here is that a point is seen by the base model images and live model images
 # obviously the live model images number > base model images number for a point
 import sys
-
 import numpy as np
 from tqdm import tqdm
-
 from database import COLMAPDatabase
 from parameters import Parameters
-from point3D_loader import read_points3d_default, index_dict
-from query_image import read_images_binary, get_images_ids, get_images_names_from_sessions_numbers
+from point3D_loader import read_points3d_default
+from query_image import read_images_binary
 
 SIZE = 129
 def get_desc_avg(points3D, db):
@@ -48,6 +46,7 @@ parameters = Parameters(base_path)
 db_live = COLMAPDatabase.connect(parameters.live_db_path)
 db_base = COLMAPDatabase.connect(parameters.base_db_path)
 
+# TODO: 20/03/2012 - images Not needed ?
 base_model_images = read_images_binary(parameters.base_model_images_path)
 base_model_points3D = read_points3d_default(parameters.base_model_points3D_path)
 

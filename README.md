@@ -29,6 +29,8 @@ Then a file called `evaluation_results_2022_aggregated.csv` is generated from th
 This is the file to read from. At this point you can parse the results and generate the graphs.
 Do not run `analyse_results_models_*.py` or `main.py` or `get_lamar/cmu/coop_data.py` again.
 
+You can print the latex tables by running: `print_latex_tables_matches_no.py` and `print_latex_tables_per_dataset_main_results.py`
+
 ## Below are the old instructions (pre 2023)
 
 ### This repo contains the code for the above paper accepted in WACV2021.

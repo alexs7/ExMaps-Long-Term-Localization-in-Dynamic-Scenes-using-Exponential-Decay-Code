@@ -74,6 +74,12 @@ def get_6dof_accuracy_for_all_images(est_poses, gt_poses, scale = 1):
         image_errors_6dof[image_name] = [error_t, error_r]
     return image_errors_6dof
 
+# CAB dataset notes (use this in the loop below):
+# if (est_values[0] > 90):  # Use this for CAB as it is a very challenging dataset and 1-2 poses return a trans error of 60k+ ! This is out my control.
+#     t_errors.append(90)
+# else:
+#     t_errors.append(est_values[0])
+
 def get_row_data(result_file, mAA, est_poses_results, image_errors_6dof, degenerate_poses_no):
     # ['Method Name', 'Inliers (%)', 'Outliers (%)', 'Iterations', 'Total Time (s)', 'Trans Error (m)', 'Rotation Error (d)', 'MAA', 'Degenerate Poses'] (and total matches)
     assert len(est_poses_results) == len(image_errors_6dof)
@@ -129,6 +135,7 @@ def check_for_degenerate_cases(RUNS, results_path):
 #  and save to a csv file
 def average_csv_results_files(parameters, runs):
     first_run = 0
+    # assume the other is the same for all runs
     sample_df = pd.read_csv(os.path.join(parameters.results_path, f"evaluation_results_all_run_{first_run}.csv"))
     methods = sample_df['Method Name']
     values = sample_df.columns[2:]
@@ -137,6 +144,7 @@ def average_csv_results_files(parameters, runs):
     # reset
     for run in range(runs):
         pf = pd.read_csv(os.path.join(parameters.results_path, f"evaluation_results_all_run_{run}.csv"))
+        assert np.all(pf['Method Name'] == methods)
         all_values[:, :, run] = pf.values[:, 2:]
 
     # Now I have all the values in all_values, matrix, get the mean and

@@ -189,7 +189,7 @@ if(create_all_data):
                                                         base_cameras_files_path, base_raw_data_path, base_reconstruction)
 
     # 2, run the matcher
-    print("Matching images on the live model")
+    print("Matching images on the base model")
     images_file_txt_path = os.path.join(base_model_path, "images.txt")
     # write to images_file_txt_path the images you want in the base model (subset)
     # The method below will create an empty almost .txt file that the triangulator will use for poses
